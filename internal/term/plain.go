@@ -11,11 +11,6 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// suggestMaxDist bounds the closest-word suggestion: past distance 2 the
-// nearest list word is noise, not a likely intent (B24 guarantees uniqueness
-// only at ≤ 1; ties at 2 resolve in list order).
-const suggestMaxDist = 2
-
 // readPhrasePlain is the §7.6 accessibility path as pinned by B24: cooked
 // mode, one word (or the whole phrase) per line, list-validated with a
 // spoken-friendly echo, no ANSI, no cursor addressing. Line validation is
@@ -58,17 +53,17 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 		if err != nil {
 			return nil, err
 		}
-		s := string(line)
 		switch {
-		case s == "":
+		case len(line) == 0:
 			if len(committed) >= min {
 				return secret.New(joinPhrase(committed)), nil
 			}
 			fmt.Fprintf(w, "%d/%d — need at least %d words\n", len(committed), min, min)
 			continue
 		}
-		tokens := strings.Fields(strings.ToLower(s))
-		if ok := validateTokens(w, words, committed, tokens); !ok {
+		tokens, issue := parseInteractiveWords(line, committed)
+		if issue != interactiveWordsOK {
+			fmt.Fprintln(w, interactiveWordsMessage(issue))
 			continue
 		}
 		for _, tok := range tokens {
@@ -79,31 +74,6 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 			fmt.Fprintf(w, "%d words — an empty line decrypts; keep typing if the phrase was longer\n", len(committed))
 		}
 	}
-}
-
-// validateTokens applies the atomic rule to one line's tokens and echoes the
-// first failure (shared not-on-list phrasing with §7.2 paste, per B24).
-func validateTokens(w io.Writer, words, committed, tokens []string) bool {
-	seen := make(map[string]bool, len(committed)+len(tokens))
-	for _, c := range committed {
-		seen[c] = true
-	}
-	for _, tok := range tokens {
-		if !inList(words, tok) {
-			if cw, d := closestWord(words, tok); d <= suggestMaxDist {
-				fmt.Fprintf(w, "%q is not on the word list — closest: %s\n", tok, cw)
-			} else {
-				fmt.Fprintf(w, "%q is not on the word list\n", tok)
-			}
-			return false
-		}
-		if seen[tok] {
-			fmt.Fprintf(w, "duplicate word %q\n", tok)
-			return false
-		}
-		seen[tok] = true
-	}
-	return true
 }
 
 // plainLabel mirrors promptLabel without the glyphs: spoken-friendly,

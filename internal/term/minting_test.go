@@ -33,7 +33,7 @@ func TestPlainPhraseEntryTreatsRetiredEscapeAsOffList(t *testing.T) {
 	if got := string(buf.Bytes()); got != mintPhrase {
 		t.Errorf("phrase=%q, want %q", got, mintPhrase)
 	}
-	if !strings.Contains(out.String(), `"!freeform" is not on the word list`) {
+	if !strings.Contains(out.String(), "a word is not on the Burnerpad word list") {
 		t.Fatalf("retired escape was not rejected:\n%s", out.String())
 	}
 }

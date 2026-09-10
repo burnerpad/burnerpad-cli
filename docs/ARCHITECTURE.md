@@ -110,7 +110,8 @@ AAD  = 0x02 0x02 || salt || iv
 Generated phrases contain exactly seven distinct uniformly sampled words from the embedded 1,296-word EFF
 Short Wordlist #2. Supplied phrases contain 7–64 distinct list members. Parsing accepts only ASCII
 whitespace as separators, ASCII-lowercases accepted words, and joins them with one space. It never changes
-a word or its order, and it never accepts a free-form escape.
+a word or its order, and it never accepts a free-form escape. Raw typed commits, bracketed paste, plain-line
+entry, and credential files/descriptors enforce that same word-count and whitespace grammar.
 
 Every secret needs a unique phrase. Suite `0x02` does not authenticate the server-assigned ID, so phrase
 reuse would allow a malicious server to substitute another valid blob created under the same phrase. The

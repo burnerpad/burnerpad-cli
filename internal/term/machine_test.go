@@ -248,11 +248,11 @@ func TestKeyTable(t *testing.T) {
 			},
 		},
 		{
-			name: "paste: any invalid token rejects the whole paste, names first bad token",
+			name: "paste: any invalid token rejects the whole paste",
 			steps: []step{
 				{ev: paste("acrobat osmoss dresser"), expect: expect{
 					committed: []string{}, bell: bp(true),
-					status: sp(`paste rejected: "osmoss" is not on the word list`)}},
+					status: sp("paste rejected: a word is not on the Burnerpad word list")}},
 			},
 		},
 		{
@@ -260,7 +260,7 @@ func TestKeyTable(t *testing.T) {
 			steps: []step{
 				{ev: paste("acrobat acrobat"), expect: expect{
 					committed: []string{}, bell: bp(true),
-					status: sp(`paste rejected: duplicate word "acrobat"`)}},
+					status: sp("paste rejected: a word is repeated")}},
 			},
 		},
 		{
@@ -269,7 +269,7 @@ func TestKeyTable(t *testing.T) {
 				{ev: paste("acrobat")},
 				{ev: paste("cufflink acrobat"), expect: expect{
 					committed: []string{"acrobat"}, bell: bp(true),
-					status: sp(`paste rejected: duplicate word "acrobat"`)}},
+					status: sp("paste rejected: a word is repeated")}},
 			},
 		},
 		{
@@ -651,6 +651,7 @@ func TestSeedRejections(t *testing.T) {
 	reject("duplicate word", NewMachine(0),
 		[]string{"acrobat", "acrobat", "dresser", "osmosis", "riverboat", "tulip", "wolverine"})
 	reject("below the gate", NewMachine(0), seedWords7[:6])
+	reject("above the maximum", NewMachine(0), wordlist.Words()[:wordlist.MaxPhraseWords+1])
 	reject("empty seed", NewMachine(0), nil)
 
 	dirty := NewMachine(0)
@@ -699,6 +700,9 @@ func TestSeedWords(t *testing.T) {
 	}
 	if got := SeedWords([]byte("cup elk"), 0); got != nil {
 		t.Errorf("default-gate SeedWords(cup elk) = %v, want nil", got)
+	}
+	if got := SeedWords([]byte(strings.Join(wordlist.Words()[:wordlist.MaxPhraseWords+1], " ")), 0); got != nil {
+		t.Errorf("SeedWords accepted 65 words: %v", got)
 	}
 }
 
