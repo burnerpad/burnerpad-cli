@@ -23,7 +23,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 
 - [x] 1. Prevent release-protection bypass and tag-triggered shell execution.
 - [x] 2. Render decrypted plaintext safely in interactive terminals.
-- [ ] 3. Preflight the implicit viewer before destructive reveal.
+- [x] 3. Preflight the implicit viewer before destructive reveal.
 - [ ] 4. Make signals mutation-aware and run required cleanup.
 - [ ] 5. Resolve the unverifiable OSC 52 delivery contract.
 - [ ] 6. Correct post-mutation HTTP outcome classification.
@@ -106,6 +106,15 @@ Unicode, and malformed UTF-8 in both viewer modes.
 Explicit output and clipboard destinations are prepared at `internal/cli/reveal.go:76-90`, but the destructive claim happens at `:98`. The implicit viewer does not acquire its controlling terminal until `:208-214`.
 
 With TTY stdout but no controlling terminal—for example under `setsid` or some containers—the secret is consumed, viewer acquisition fails, and no recovery ciphertext exists unless `--keep-blob` was selected. This contradicts the destination-preflight guarantee.
+
+Remediation applied 2026-09-10: destination preparation now opens and caches
+the controlling terminal whenever implicit TTY viewing is selected. Delivery
+reuses that exact prepared terminal from the application cache, so a missing
+controlling terminal fails locally before the reveal POST in both
+alternate and plain modes. Explicit files, JSON, clipboard, and piped stdout
+keep their existing destination-specific preflight behavior. Regression tests
+prove terminal-open failure sends zero claim requests and that JSON, file, and
+piped-stdout destinations do not acquire a viewer terminal.
 
 ### 4. High — signal handling can hide a completed mutation and lose data
 
