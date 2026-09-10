@@ -89,6 +89,12 @@ jobs:
       - run: ./scripts/check-deps.sh
       - run: make cross && ./scripts/check-size.sh dist/*
 
+  spec-drift:
+    needs: validate-release-request
+    permissions:
+      contents: read
+    uses: ./.github/workflows/spec-drift.yml
+
   pinned-lite-interop:
     needs: validate-release-request
     runs-on: ubuntu-latest
@@ -146,7 +152,7 @@ jobs:
             npx playwright test cli-interop.spec.mjs --project=chromium
 
   publish-release:
-    needs: [validate-release-request, gate, pinned-lite-interop]
+    needs: [validate-release-request, gate, spec-drift, pinned-lite-interop]
     runs-on: ubuntu-latest
     permissions:
       contents: write

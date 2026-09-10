@@ -1,11 +1,14 @@
 # spec-drift (ARCHITECTURE.md §14.1): the vendored SPEC/vectors/wordlist must stay
-# byte-identical to the reviewed upstream revision. Runs on push and weekly so
-# a pin move cannot silently separate the vendored artifacts from its source.
+# byte-identical to the reviewed upstream revision. Runs on pull requests,
+# main pushes, release calls, and weekly so a pin move cannot silently
+# separate the vendored artifacts from its source.
 name: spec-drift
 on:
+  pull_request:
   push: { branches: [main] }
   schedule:
     - cron: "17 6 * * 1"
+  workflow_call:
 
 permissions:
   contents: read
@@ -15,16 +18,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - id: lite
         name: Read the reviewed burnerpad-lite revision
         shell: bash
-        run: echo "revision=$(tr -d '\r\n' < .burnerpad-lite-revision)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          REVISION=$(< .burnerpad-lite-revision)
+          if [[ ! "$REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "reviewed burnerpad-lite revision is not a full commit SHA" >&2
+            exit 1
+          fi
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: burnerpad/burnerpad-lite
           ref: ${{ steps.lite.outputs.revision }}
           path: upstream/burnerpad-lite
           submodules: true
+          persist-credentials: false
+      - name: Verify the reviewed burnerpad-lite revision
+        shell: bash
+        env:
+          REVISION: ${{ steps.lite.outputs.revision }}
+        run: test "$(git -C upstream/burnerpad-lite rev-parse --verify HEAD)" = "$REVISION"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version-file: upstream/burnerpad-lite/.tool-versions }
       - run: ./scripts/sync-vectors.sh upstream/burnerpad-lite

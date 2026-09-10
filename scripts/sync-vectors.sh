@@ -9,7 +9,7 @@ CRYPTO="$LITE/priv/static/vendor/crypto-js"
 
 fail=0
 cmp -s "$CRYPTO/vectors/v1.json" envelope/testdata/v1.json || { echo "DRIFT: vectors/v1.json differs" >&2; fail=1; }
-[ -f spec/SPEC.md ] && { cmp -s "$CRYPTO/SPEC.md" spec/SPEC.md || { echo "DRIFT: SPEC.md differs" >&2; fail=1; }; }
+cmp -s "$CRYPTO/SPEC.md" spec/SPEC.md || { echo "DRIFT: SPEC.md differs" >&2; fail=1; }
 
 # Wordlist: regenerate from the web driver's array and compare.
 node -e '

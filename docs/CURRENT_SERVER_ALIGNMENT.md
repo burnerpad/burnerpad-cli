@@ -258,8 +258,9 @@ requested artifact reached its selected destination.
 - In `envelope/`, remove suite-`0x01` encryption, decryption, key, and fragment APIs from the Go product.
   Retain suite-`0x02` AES-256-GCM, PBKDF2-HMAC-SHA256, canonical-base64url, randomness seams, memory wiping,
   and applicable upstream known-answer/negative tests.
-- Make the supported vector loader select and require every suite-`0x02` case rather than claiming whole-spec
-  support. A newly added applicable vector must fail CI until handled.
+- Make the supported vector loader hash the raw pinned file, select and require every suite-`0x02` case, and
+  execute both generic encoding classes rather than claiming whole-spec support. A newly added applicable
+  vector or expectation must fail CI until handled.
 - Keep the upstream language-neutral specification as provenance even if it documents suites outside this
   product; clearly state that the CLI conformance claim is the supported subset.
 - Remove fragment-shaped error categories, scrubber exceptions, differential-driver modes, and fuzz cases

@@ -209,9 +209,10 @@ make test
 make lint
 ```
 
-CI gates unit/property tests, the complete applicable suite-`0x02` vector subset, six cross-builds,
-and real Chromium interoperability with the reviewed burnerpad-lite revision. A scheduled job runs
-the same browser/CLI matrix against burnerpad-lite `main` to detect future drift.
+CI pins the raw upstream vector file, executes the complete applicable suite-`0x02` and generic encoding
+vectors, byte-checks vendored crypto material, runs six cross-builds, and exercises real Chromium
+interoperability with the reviewed burnerpad-lite revision. A scheduled job runs the same browser/CLI matrix
+against burnerpad-lite `main` to detect future drift.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
 [RELEASING.md](RELEASING.md).

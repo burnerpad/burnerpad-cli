@@ -41,3 +41,5 @@ derived from the immutable release tag and never hardcoded in source.
   and viewer Ctrl+C exits as an interruption.
 - Retire OSC 52 clipboard options before version one because terminal acceptance and payload completeness
   cannot be verified, keeping exit zero's destination-delivery contract unqualified.
+- Enforce the raw upstream conformance-vector hash, execute every supported and generic encoding vector, and
+  make byte-for-byte specification drift a pull-request and release dependency.

@@ -116,9 +116,10 @@ Every secret needs a unique phrase. Suite `0x02` does not authenticate the serve
 reuse would allow a malicious server to substitute another valid blob created under the same phrase. The
 generator makes a fresh random selection; supplied-phrase uniqueness is a caller responsibility.
 
-All applicable upstream suite-`0x02` decrypt, encrypt, and negative vectors run in CI. Adding a new
-suite-`0x02` vector automatically adds a required test case; a new error expectation fails until handled.
-Published PBKDF2 and Wycheproof primitives remain independent lower-level gates.
+The test harness hashes the exact raw upstream vector file against `VectorsSHA256`, then runs every applicable
+suite-`0x02` decrypt, encrypt, and negative vector plus every generic encoding and encoding-negative vector.
+A new applicable vector runs automatically, and a new error expectation fails until handled. Published PBKDF2
+and Wycheproof primitives remain independent lower-level gates.
 
 ## Input ownership
 
@@ -181,9 +182,11 @@ began cancels that wait normally.
 
 ## Release and compatibility gates
 
-`.burnerpad-lite-revision` is the reviewed current-server pin. Pull requests and releases check out that
-exact revision and run real Chromium interoperability in all three directions: browser→CLI, CLI→browser,
-and CLI→CLI. A scheduled workflow runs the same tests against Lite `main` as an early drift warning.
+`.burnerpad-lite-revision` is the reviewed current-server pin. Pull requests and releases run the reusable
+`spec-drift` gate against that exact revision, byte-comparing the vendored specification, vectors, and
+wordlist. They also run real Chromium interoperability in all three directions: browser→CLI, CLI→browser,
+and CLI→CLI. A scheduled workflow runs the same interoperability tests against Lite `main` as an early drift
+warning.
 
 The release version comes exclusively from the immutable `v*` Git tag via linker flags. Source contains no
 release-version constant and a release requires no follow-up version-bump commit. Artifacts are rebuilt from

@@ -129,15 +129,31 @@ func TestReleaseWorkflowUsesTrustedDefaultBranchAndScopesAuthority(t *testing.T)
 		}
 	}
 
-	for _, name := range []string{"gate", "pinned-lite-interop"} {
+	for _, name := range []string{"gate", "spec-drift", "pinned-lite-interop"} {
 		job := workflowJob(t, workflow, name)
 		if !strings.Contains(job, "needs: validate-release-request") {
 			t.Errorf("job %q can run before release-request validation", name)
 		}
 	}
-	publisher := workflowJob(t, workflow, "publish-release")
+	drift := workflowJob(t, workflow, "spec-drift")
 	for _, want := range []string{
-		"needs: [validate-release-request, gate, pinned-lite-interop]",
+		"needs: validate-release-request",
+		"permissions:\n      contents: read",
+		"uses: ./.github/workflows/spec-drift.yml",
+	} {
+		if !strings.Contains(drift, want) {
+			t.Errorf("publisher spec-drift job does not contain %q", want)
+		}
+	}
+	if strings.Contains(drift, "secrets: inherit") {
+		t.Error("publisher passes inherited secrets to spec-drift")
+	}
+	publisher := workflowJob(t, workflow, "publish-release")
+	if strings.Contains(publisher, "if: always()") {
+		t.Error("publisher can bypass failed or skipped release dependencies")
+	}
+	for _, want := range []string{
+		"needs: [validate-release-request, gate, spec-drift, pinned-lite-interop]",
 		"GITHUB_TOKEN: ${{ github.token }}",
 		"GH_TOKEN: ${{ github.token }}",
 		"version: v2.18.1",
@@ -202,6 +218,64 @@ func TestReleaseWorkflowUsesTrustedDefaultBranchAndScopesAuthority(t *testing.T)
 		if !strings.Contains(checkout, "persist-credentials: false") {
 			t.Errorf("checkout at line %d persists credentials", line)
 		}
+	}
+}
+
+func TestSpecDriftIsRequiredAtPullRequestAndReleaseBoundaries(t *testing.T) {
+	raw, err := os.ReadFile("../.github/workflows/spec-drift.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := stripYAMLComments(string(raw))
+	top, _, ok := strings.Cut(workflow, "jobs:\n")
+	if !ok {
+		t.Fatal("spec-drift workflow has no jobs block")
+	}
+	for _, trigger := range []string{
+		"  pull_request:\n",
+		"  workflow_call:\n",
+		"  push: { branches: [main] }\n",
+		"  schedule:\n",
+	} {
+		if !strings.Contains(top, trigger) {
+			t.Errorf("spec-drift workflow lacks trigger %q", strings.TrimSpace(trigger))
+		}
+	}
+	if strings.Contains(top, "pull_request_target:") {
+		t.Error("spec-drift executes repository code through pull_request_target")
+	}
+	if !strings.Contains(top, "permissions:\n  contents: read\n") {
+		t.Error("spec-drift workflow permissions are not explicitly read-only")
+	}
+
+	checkouts := checkoutBlocks(workflow)
+	if len(checkouts) != 2 {
+		t.Fatalf("spec-drift checkout count=%d, want 2", len(checkouts))
+	}
+	for line, checkout := range checkouts {
+		if !strings.Contains(checkout, "persist-credentials: false") {
+			t.Errorf("spec-drift checkout at line %d persists credentials", line)
+		}
+	}
+	for _, want := range []string{
+		`[[ ! "$REVISION" =~ ^[0-9a-f]{40}$ ]]`,
+		`git -C upstream/burnerpad-lite rev-parse --verify HEAD`,
+		`./scripts/sync-vectors.sh upstream/burnerpad-lite`,
+	} {
+		if !strings.Contains(workflow, want) {
+			t.Errorf("spec-drift workflow does not contain %q", want)
+		}
+	}
+
+	script, err := os.ReadFile("sync-vectors.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(script), "[ -f spec/SPEC.md ]") {
+		t.Error("spec-drift silently skips a missing vendored SPEC")
+	}
+	if !strings.Contains(string(script), `cmp -s "$CRYPTO/SPEC.md" spec/SPEC.md ||`) {
+		t.Error("spec-drift does not require the vendored SPEC to match upstream")
 	}
 }
 

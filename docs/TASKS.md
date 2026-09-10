@@ -9,7 +9,8 @@ they described a different product.
 - [x] Support only suite `0x02` in the shipped Go envelope API.
 - [x] Canonicalize 7–64 distinct shared-list words identically for create, reveal, and decrypt.
 - [x] Generate exactly seven distinct uniformly sampled words.
-- [x] Gate every applicable upstream suite-`0x02` vector plus PBKDF2 and Wycheproof primitives.
+- [x] Pin the raw upstream vector file and gate every applicable suite-`0x02` and generic encoding vector,
+  plus PBKDF2 and Wycheproof primitives.
 - [x] Accept only non-empty UTF-8 create plaintext up to 65,491 bytes.
 
 ## Current server contract
