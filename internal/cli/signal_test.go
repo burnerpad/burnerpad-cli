@@ -292,12 +292,25 @@ func TestReadBoundedCancellationClosesActivePipe(t *testing.T) {
 	}
 }
 
-func TestMapDecryptErrorPreservesRetryInterruption(t *testing.T) {
-	err := mapDecryptError(interrupted(context.Canceled), "https://example.com")
-	var command commandError
-	if !errors.As(err, &command) || command.exit != 130 || command.server != "https://example.com" ||
-		!errors.Is(err, context.Canceled) {
-		t.Fatalf("mapped error = %#v, want server-attached interrupt preserving cancellation", err)
+func TestMapDecryptErrorPreservesRetryCommandErrors(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		err   error
+		exit  int
+		code  string
+		cause error
+	}{
+		{name: "interruption", err: interrupted(context.Canceled), exit: 130, cause: context.Canceled},
+		{name: "local I/O", err: localCause("cannot read retry phrase", io.ErrClosedPipe), exit: 3, code: "local_io_failed", cause: io.ErrClosedPipe},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := mapDecryptError(test.err, "https://example.com")
+			var command commandError
+			if !errors.As(err, &command) || command.exit != test.exit || command.code != test.code ||
+				command.server != "https://example.com" || !errors.Is(err, test.cause) {
+				t.Fatalf("mapped error = %#v, want server-attached command error %#v", err, test)
+			}
+		})
 	}
 }
 
