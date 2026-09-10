@@ -27,6 +27,7 @@ const (
 	KindCtrlO
 	KindPaste
 	KindInputTooLong
+	KindResize
 	KindIgnored
 )
 
