@@ -133,10 +133,15 @@ written by `--keep-blob`. Offline decrypt never constructs an HTTP client.
 
 ## Output contract
 
-Without a destination option, reveal/decrypt use an alternate-screen terminal viewer or write exact
-UTF-8 bytes to piped stdout. `--out` creates a new owner-only file and never overwrites. Clipboard
-delivery uses OSC 52, defaults to a 45-second best-effort clear, and warns that clipboard managers
-may retain history. `--json`, `--out`, and `--clip` are mutually exclusive.
+Without a destination option, reveal/decrypt show a terminal-safe rendition on TTY stdout, using the
+alternate screen when available and the same renderer in `--plain`/fallback mode. Graphic UTF-8 stays
+readable, LF/CRLF remain line breaks, and other control, format, and non-graphic characters are shown as
+inert Go-style escapes such as `\t`, `\x1b`, and `\u202e`. This display is intentionally not byte-exact.
+Piped stdout and `--out` receive the original authenticated UTF-8 bytes; decoding JSON's `plaintext`
+string reproduces those bytes exactly. The OSC 52 request encodes the original bytes without the viewer's
+transformation, but terminal acceptance and truncation are unverifiable. `--out` creates a new owner-only
+file and never overwrites. Clipboard delivery defaults to a 45-second best-effort clear and warns that
+clipboard managers may retain history. `--json`, `--out`, and `--clip` are mutually exclusive.
 
 Stable JSON successes are:
 
@@ -179,7 +184,9 @@ one request per invocation.
 Passphrases and management tokens have no argv or environment interface. The CLI has no config file,
 persistent state, telemetry, update check, or additional network probe. Go memory wiping and page
 locking are best effort; endpoint compromise, keyloggers, shell history, clipboard history, and
-terminal scrollback remain outside the CLI's control. See [SECURITY.md](SECURITY.md).
+terminal scrollback remain outside the CLI's control. Plain mode can retain the safe rendition in
+scrollback. A caller that sends byte-exact pipe, file, decoded-JSON, or clipboard output to a terminal assumes
+the risk of interpreting its controls. See [SECURITY.md](SECURITY.md).
 
 ## Build and test
 

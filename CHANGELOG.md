@@ -5,6 +5,11 @@ derived from the immutable release tag and never hardcoded in source.
 
 ## [Unreleased]
 
+### Security
+
+- Render decrypted plaintext as inert visible escapes in interactive terminals without changing pipe/file
+  bytes, decoded JSON values, or the bytes encoded into OSC 52 requests.
+
 ## [1.0.0] - 2026-09-10
 
 ### Added

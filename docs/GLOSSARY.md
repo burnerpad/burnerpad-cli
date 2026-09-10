@@ -80,7 +80,7 @@ preserve the blob — the process now holds the only copy in the universe).
 
 | Term | Meaning |
 |---|---|
-| **artifact** | The one thing stdout carries: the share URL (create), raw plaintext (reveal), or the `--json` object. Everything else is stderr/tty (§5.1). |
+| **artifact** | The one thing stdout carries: the share URL (create), a terminal-safe plaintext rendition on TTY stdout or exact plaintext on piped stdout (reveal/decrypt), or the `--json` object. Everything else is stderr/tty (§5.1). |
 | **implicit reveal** | A first argument that is not a subcommand but parses as URL/id is treated as `reveal <arg>` (§4.2). |
 | **suite-by-audience rule** | Interactive stdout (TTY) ⇒ mint 0x02; piped stdout ⇒ mint 0x01. Always announced on stderr; overridden by `-P`/`-L` (§5.2). |
 | **two-channel handoff** | The 0x02 create ending: link and phrase presented as two blocks meant to travel by two different channels (§6). |
@@ -89,7 +89,7 @@ preserve the blob — the process now holds the only copy in the universe).
 | **commit** | Accepting the current word into the phrase (Space/Enter when unambiguous); committed words render in full and count toward the ≥ 7 gate. |
 | **free-form mode** | Ctrl+O fallback: masked line entry for non-wordlist passphrases other clients may mint (list-locking is a burnerpad-phrase optimization, not a format rule) (§7.2). |
 | **plain mode** | `--plain` / `BURNERPAD_PLAIN=1` / `CI` / `TERM=dumb`: line-based prompts, no raw mode, no ANSI; the accessibility-first equivalent path (§7.6). |
-| **alternate-screen viewer** | The `less`-style reveal display on a TTY: plaintext shown on the alternate screen; `q` returns with zero secret bytes in scrollback (§8.1). |
+| **alternate-screen viewer** | The `less`-style reveal display on a TTY: a terminal-safe plaintext rendition is shown on the alternate screen; `q` returns while the alternate screen limits primary-scrollback exposure (§8.1). |
 | **OSC 52** | The terminal escape that lets the *terminal* (not an executed helper binary) write the clipboard; works over SSH; the only clipboard mechanism the CLI uses (§8.1). |
 | **bracketed paste** | Terminal mode 2004: a paste arrives delimited by markers, letting the prompt validate a whole phrase atomically — all words commit, or the entire paste is rejected (§7.2). |
 | **stream discipline** | The §5.1 contract: stdout = artifact only; stderr = everything else; interactivity decided solely by `term.IsTerminal` per fd. |
