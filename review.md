@@ -27,7 +27,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 4. Make signals mutation-aware and run required cleanup.
 - [x] 5. Resolve the unverifiable OSC 52 delivery contract.
 - [x] 6. Correct post-mutation HTTP outcome classification.
-- [ ] 7. Enforce the advertised conformance-vector pin.
+- [x] 7. Enforce the advertised conformance-vector pin.
 - [x] 8. Repair deterministic release reproduction.
 - [ ] 9. Fix remaining completeness and UX defects.
 - [ ] 10. Remove dead and duplicated surface area.
@@ -192,6 +192,24 @@ outcome rather than a protocol-only failure.
 `envelope/vectors.go:3-8` says the harness independently verifies `VectorsSHA256`, but `envelope/suite02_vectors_test.go:42-61` only unmarshals the file. It requires each class to be nonempty, so most vectors could disappear while tests still pass. The generic `encoding` and `encoding_negative` arrays are not loaded at all.
 
 The current file does match the declared hash; the problem is that the release gate does not prove it. Spec drift runs only after main pushes or on schedule, not on PRs or as a release dependency (`.github/workflows/spec-drift.yml:5-8`).
+
+Remediation applied 2026-09-11:
+
+- The harness hashes the raw `testdata/v1.json` bytes before decoding and requires the digest advertised by
+  `VectorsSHA256`. Fixture fields distinguish absence from valid empty values, and new expectation strings
+  fail closed.
+- Every applicable suite-`0x02` decrypt, encrypt, and negative vector now runs, along with every generic
+  encoding and encoding-negative vector in both relevant directions. The raw hash is the single exact-set pin,
+  so the harness does not duplicate brittle fixed counts.
+- `spec-drift` now runs on pull requests and as a reusable workflow. Both checkouts discard credentials, the
+  reviewed Lite pin must be a full lowercase commit SHA and match the checkout, and a missing vendored
+  specification can no longer be silently skipped.
+- Release drift runs only after request authorization, and the privileged publisher directly depends on it.
+  The active `Protect default branch` ruleset now requires the registered `drift` check; no user-side GitHub
+  action, secret, token, or environment remains outstanding.
+- Verified with the pinned upstream byte comparison, full Go test/vet/race suites, Staticcheck, actionlint,
+  shell syntax, six cross-builds, the size gate, the live required PR check, and three independent final
+  reviews.
 
 ### 8. Reproducibility verification is guaranteed to disagree with GoReleaser
 

@@ -14,7 +14,8 @@ Before attempting a release:
 2. Enable immutable releases and verify that
    `gh api repos/OWNER/REPOSITORY/immutable-releases --jq .enabled` prints
    `true`.
-3. Protect the default branch with pull-request and required-check rules.
+3. Protect the default branch with pull-request and required-check rules, including the `drift` job from the
+   `spec-drift` workflow after that pull-request check has run once.
    While the organization has one maintainer, require zero approvals so that
    releases are not deadlocked; require at least one approval after adding an
    independent maintainer. Protect `v*` tags from update and deletion, but
@@ -93,8 +94,9 @@ still prevents reuse of its tag name.
 
 ⚙ = CI-enforced; listed so a human confirms the enforcement actually ran.
 
-1. ⚙ Every applicable suite-`0x02` vector green on the release commit (`ci` + release gate).
-2. ⚙ `spec-drift` green — vendored SPEC/vectors/wordlist match the pinned
+1. ⚙ The raw vector hash and every applicable suite-`0x02` and generic encoding vector are green on the
+   release commit (`ci` + release gate).
+2. ⚙ `spec-drift` green as a direct release dependency — vendored SPEC/vectors/wordlist match the pinned
    upstream (`.github/workflows/spec-drift.yml`).
 3. ⚙ Pinned real-Lite interoperability green in all three official-client directions.
 4. ⚙ **No-phone-home invariant**: zero egress to any host other than the selected API
