@@ -33,9 +33,9 @@ func TestViewerAltScreenGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "\x1b[?1049h\x1b[H\x1b[2J" +
-		"  52 bytes · controls escaped\r\n\r\n" +
+		"  52 bytes | controls escaped\r\n\r\n" +
 		"db: postgres://svc_deploy:wR8-kk2@10.0.4.7:5432/prod" +
-		"\x1b[24;1H  end · q closes" +
+		"\x1b[24;1H  end | q closes" +
 		"\x1b[?1049l"
 	if got := buf.String(); got != want {
 		t.Fatalf("screen = %q\nwant     %q", got, want)
@@ -47,7 +47,7 @@ func TestViewerHeaderDimUnlessNoColor(t *testing.T) {
 	if err := showViewer(&buf, script(rn('q')), []byte("x"), ViewerOpts{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "\x1b[2m1 bytes · controls escaped\x1b[22m") {
+	if !strings.Contains(buf.String(), "\x1b[2m1 bytes | controls escaped\x1b[22m") {
 		t.Fatalf("missing dim header: %q", buf.String())
 	}
 }
@@ -84,7 +84,7 @@ func TestViewerCancellationAndReadErrorRestorePrimaryScreen(t *testing.T) {
 				defer cancel()
 			}
 			var buf bytes.Buffer
-			err := showViewerContext(ctx, &buf, next, []byte("secret"), ViewerOpts{NoColor: true}, 80, 24,
+			err := showViewerContext(ctx, &buf, next, nil, []byte("secret"), ViewerOpts{NoColor: true}, 80, 24,
 				func() error {
 					_, err := io.WriteString(&buf, "\x1b[?1049h")
 					return err
@@ -108,7 +108,7 @@ func TestViewerNoAltRendersBeforeReturningCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var buf bytes.Buffer
-	err := showViewerContext(ctx, &buf, nil, []byte("claimed secret"), ViewerOpts{NoAlt: true}, 80, 24, nil, nil)
+	err := showViewerContext(ctx, &buf, nil, nil, []byte("claimed secret"), ViewerOpts{NoAlt: true}, 80, 24, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -172,7 +172,7 @@ func TestViewerByteCountUsesUnexpandedSourceLength(t *testing.T) {
 	if err := showViewer(&buf, script(rn('q')), []byte{0x1b}, ViewerOpts{NoColor: true}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "1 bytes · controls escaped") || !strings.Contains(buf.String(), `\x1b`) {
+	if !strings.Contains(buf.String(), "1 bytes | controls escaped") || !strings.Contains(buf.String(), `\x1b`) {
 		t.Fatalf("viewer did not preserve source byte count while escaping: %q", buf.String())
 	}
 }
@@ -245,7 +245,7 @@ func TestViewerPageBoundariesDoNotSplitRenderedTokens(t *testing.T) {
 func TestViewerTinyTerminalUsesReachableScrollbackFallback(t *testing.T) {
 	var buf bytes.Buffer
 	entered := false
-	err := showViewerContext(context.Background(), &buf, nil, []byte("all plaintext remains reachable"),
+	err := showViewerContext(context.Background(), &buf, nil, nil, []byte("all plaintext remains reachable"),
 		ViewerOpts{NoColor: true}, 20, 4,
 		func() error { entered = true; return nil }, func() {})
 	if err != nil {
@@ -257,6 +257,79 @@ func TestViewerTinyTerminalUsesReachableScrollbackFallback(t *testing.T) {
 	if got := buf.String(); !strings.Contains(got, "note: plaintext is entering terminal scrollback") ||
 		!strings.Contains(got, "all plaintext remains reachable") {
 		t.Fatalf("fallback output = %q", got)
+	}
+}
+
+func TestViewerReflowsAfterShrinkAndTailRemainsReachable(t *testing.T) {
+	body := []byte(strings.Repeat("a", 200) + "TAIL")
+	events := script(kd(KindResize), kd(KindSpace), kd(KindSpace), kd(KindSpace), kd(KindSpace), rn('q'))
+	next := func(context.Context) (Event, error) { return events() }
+	var buf bytes.Buffer
+	enter := func() error {
+		_, err := io.WriteString(&buf, "\x1b[?1049h\x1b[H\x1b[2J")
+		return err
+	}
+	leave := func() { _, _ = io.WriteString(&buf, "\x1b[?1049l") }
+	err := showViewerContext(context.Background(), &buf, next, func() (int, int) { return 50, 5 },
+		body, ViewerOpts{NoColor: true}, 80, 24, enter, leave)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(buf.String(), "TAIL"); got != 2 {
+		t.Fatalf("tail render count = %d, want initial frame and reflowed final page; output=%q", got, buf.String())
+	}
+}
+
+func TestViewerRechecksGeometryWithoutResizeEvent(t *testing.T) {
+	body := []byte(strings.Repeat("a", 200) + "TAIL")
+	events := script(kd(KindSpace), rn('q'))
+	next := func(context.Context) (Event, error) { return events() }
+	var buf bytes.Buffer
+	err := showViewerContext(context.Background(), &buf, next, func() (int, int) { return 50, 5 },
+		body, ViewerOpts{NoColor: true}, 80, 24,
+		func() error {
+			_, err := io.WriteString(&buf, "\x1b[?1049h\x1b[H\x1b[2J")
+			return err
+		},
+		func() { _, _ = io.WriteString(&buf, "\x1b[?1049l") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Windows has no SIGWINCH. The Space that first reveals changed
+	// dimensions must reflow only; it must not also advance past that page.
+	if got := strings.Count(buf.String(), "\x1b[H\x1b[2J"); got != 2 {
+		t.Fatalf("clear count = %d, want initial frame plus one reflow; output=%q", got, buf.String())
+	}
+}
+
+func TestViewerResizeBelowFrameRequestsSafeFallback(t *testing.T) {
+	events := script(kd(KindResize))
+	next := func(context.Context) (Event, error) { return events() }
+	var buf bytes.Buffer
+	err := showViewerContext(context.Background(), &buf, next, func() (int, int) { return 20, 4 },
+		[]byte("secret"), ViewerOpts{NoColor: true}, 80, 24,
+		func() error { return nil }, func() { _, _ = io.WriteString(&buf, "left") })
+	if !errors.Is(err, errViewerFallback) {
+		t.Fatalf("err=%v, want errViewerFallback", err)
+	}
+	if !strings.HasSuffix(buf.String(), "left") {
+		t.Fatalf("alternate screen was not left before fallback: %q", buf.String())
+	}
+}
+
+func TestViewerChromeUsesOnlySingleWidthASCII(t *testing.T) {
+	for _, text := range []string{
+		viewerHeader(make([]byte, 65_491), ViewerOpts{}),
+		viewerFooterMax,
+		viewerFooter(false, true),
+		viewerFooter(true, false),
+		viewerFooter(false, false),
+	} {
+		for _, r := range text {
+			if r < 0x20 || r > 0x7e {
+				t.Fatalf("viewer chrome contains non-ASCII rune U+%04X: %q", r, text)
+			}
+		}
 	}
 }
 
@@ -370,7 +443,7 @@ func showViewerAtSize(
 		return err
 	}
 	leave := func() { _, _ = io.WriteString(w, "\x1b[?1049l") }
-	return showViewerContext(context.Background(), w, nextContext, plaintext, o, width, height, enter, leave)
+	return showViewerContext(context.Background(), w, nextContext, nil, plaintext, o, width, height, enter, leave)
 }
 
 func FuzzViewerBodyIsTerminalSafe(f *testing.F) {

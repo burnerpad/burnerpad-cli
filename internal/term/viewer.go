@@ -19,8 +19,10 @@ type ViewerOpts struct {
 
 const (
 	viewerFrameRows = 4 // header, separator, separator, footer
-	viewerFooterMax = "more · Space/Enter next · b back · q closes"
+	viewerFooterMax = "more | Space/Enter next | b back | q closes"
 )
+
+var errViewerFallback = errors.New("viewer requires scrollback fallback")
 
 // ShowViewer displays a terminal-safe rendition of plaintext per §8.1: on the
 // alternate screen (same buffer discipline as less) to limit primary-scrollback
@@ -39,16 +41,25 @@ func ShowViewerContext(ctx context.Context, t *TTY, plaintext []byte, o ViewerOp
 		o.NoAlt = true
 	}
 	if o.NoAlt {
-		return showViewerContext(ctx, t.Out(), nil, plaintext, o, width, height, nil, nil)
+		return showViewerContext(ctx, t.Out(), nil, nil, plaintext, o, width, height, nil, nil)
 	}
 	restore, err := t.MakeRaw() // single-key q needs raw mode
 	if err != nil {
 		o.NoAlt = true
-		return showViewerContext(ctx, t.Out(), nil, plaintext, o, width, height, nil, nil)
+		return showViewerContext(ctx, t.Out(), nil, nil, plaintext, o, width, height, nil, nil)
 	}
 	defer restore()
-	return showViewerContext(ctx, t.Out(), t.ReadEventContext, plaintext, o, width, height,
+	err = showViewerContext(ctx, t.Out(), t.readViewerEventContext, t.Size, plaintext, o, width, height,
 		t.enterAlternateScreen, t.leaveAlternateScreen)
+	if !errors.Is(err, errViewerFallback) {
+		return err
+	}
+	// Restore cooked output before the scrollback rendition. Both restore and
+	// leaveAlternateScreen are idempotent; their defers remain the error-path net.
+	restore()
+	o.NoAlt = true
+	width, height = t.Size()
+	return showViewerContext(ctx, t.Out(), nil, nil, plaintext, o, width, height, nil, nil)
 }
 
 // showViewer is ShowViewer minus the terminal acquisition: writer and event
@@ -63,13 +74,14 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 		return err
 	}
 	leave := func() { _, _ = io.WriteString(w, "\x1b[?1049l") }
-	return showViewerContext(context.Background(), w, nextContext, plaintext, o, 80, 24, enter, leave)
+	return showViewerContext(context.Background(), w, nextContext, nil, plaintext, o, 80, 24, enter, leave)
 }
 
 func showViewerContext(
 	ctx context.Context,
 	w io.Writer,
 	next func(context.Context) (Event, error),
+	size func() (int, int),
 	plaintext []byte,
 	o ViewerOpts,
 	width, height int,
@@ -118,6 +130,31 @@ func showViewerContext(
 			}
 			return err
 		}
+		// Windows has no SIGWINCH, so do not rely on KindResize as the only
+		// geometry trigger. Recheck before every non-closing gesture. If the
+		// terminal changed, redraw the page that contained the old source
+		// position and consume the gesture: advancing immediately would make
+		// part of that newly reflowed page impossible to read.
+		if ev.Kind != KindCtrlC && !(ev.Kind == KindRune && (ev.R == 'q' || ev.R == 'Q')) && size != nil {
+			newWidth, newHeight := size()
+			if newWidth != width || newHeight != height {
+				if !viewerFrameFits(newWidth, newHeight, header) {
+					return errViewerFallback
+				}
+				currentStart := pageStarts[page]
+				width, height = newWidth, newHeight
+				bodyColumns = width - 1
+				bodyRows = height - viewerFrameRows
+				pageStarts, page = viewerPageStartsAt(plaintext, currentStart, bodyColumns, bodyRows)
+				if err := writeViewerFrame(w, plaintext, pageStarts[page], header, bodyColumns, bodyRows, height, o.NoColor, true); err != nil {
+					return err
+				}
+				if ev.Kind == KindPaste {
+					secret.Wipe(ev.Paste)
+				}
+				continue
+			}
+		}
 		switch {
 		case ev.Kind == KindRune && (ev.R == 'q' || ev.R == 'Q'):
 			return nil
@@ -139,6 +176,9 @@ func showViewerContext(
 					return err
 				}
 			}
+		case ev.Kind == KindResize:
+			// A coalesced Unix resize tick whose dimensions were already seen.
+			continue
 		case ev.Kind == KindCtrlC:
 			return ErrInterrupted
 		case ev.Kind == KindPaste:
@@ -153,14 +193,14 @@ func viewerHeader(plaintext []byte, o ViewerOpts) string {
 	if n == 0 {
 		n = len(plaintext)
 	}
-	return groupDigits(n) + " bytes · controls escaped"
+	return groupDigits(n) + " bytes | controls escaped"
 }
 
 func viewerFrameFits(width, height int, header string) bool {
 	columns := width - 1
 	return height > viewerFrameRows &&
-		columns >= 2+utf8.RuneCountInString(header) &&
-		columns >= 2+utf8.RuneCountInString(viewerFooterMax)
+		columns >= 2+len(header) &&
+		columns >= 2+len(viewerFooterMax)
 }
 
 func writeViewerFrame(
@@ -206,11 +246,50 @@ func viewerFooter(hasPrevious, hasNext bool) string {
 	case hasPrevious && hasNext:
 		return viewerFooterMax
 	case hasNext:
-		return "more · Space/Enter next · q closes"
+		return "more | Space/Enter next | q closes"
 	case hasPrevious:
-		return "end · b back · q closes"
+		return "end | b back | q closes"
 	default:
-		return "end · q closes"
+		return "end | q closes"
+	}
+}
+
+func viewerPageStartsAt(plaintext []byte, target, columns, rows int) ([]int, int) {
+	starts := []int{0}
+	for {
+		page := len(starts) - 1
+		end := viewerPageEnd(plaintext, starts[page], columns, rows)
+		if end >= len(plaintext) || end > target {
+			return starts, page
+		}
+		if end <= starts[page] {
+			return starts, page
+		}
+		starts = append(starts, end)
+	}
+}
+
+// readViewerEventContext is the viewer's sole input wait. Unlike ordinary
+// line reads, it surfaces coalesced terminal resize ticks as events so a page
+// is never rendered with stale dimensions.
+func (t *TTY) readViewerEventContext(ctx context.Context) (Event, error) {
+	if err := ctx.Err(); err != nil {
+		return Event{}, err
+	}
+	t.startPump()
+	select {
+	case <-ctx.Done():
+		return Event{}, ctx.Err()
+	case <-t.winch:
+		return Event{Kind: KindResize}, nil
+	case ev, ok := <-t.events:
+		if !ok {
+			if t.readErr != nil && t.readErr != io.EOF {
+				return Event{}, t.readErr
+			}
+			return Event{}, io.EOF
+		}
+		return ev, nil
 	}
 }
 
