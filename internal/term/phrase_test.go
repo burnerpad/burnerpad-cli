@@ -1,6 +1,7 @@
 package term
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -54,6 +55,15 @@ func TestReadEventPump(t *testing.T) {
 	// EOF is sticky.
 	if _, err := tty.ReadEvent(); err != io.EOF {
 		t.Fatalf("second read after EOF: err = %v", err)
+	}
+}
+
+func TestReadEventContextCancellation(t *testing.T) {
+	tty, _, _ := pipeTTY(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := tty.ReadEventContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
 
@@ -183,6 +193,36 @@ func TestReadPhrasePlainInterrupt(t *testing.T) {
 	inW.Close() // immediate EOF at the prompt
 	if _, err := ReadPhrase(tty, PhraseOpts{Plain: true}); !errors.Is(err, ErrInterrupted) {
 		t.Fatalf("err = %v, want ErrInterrupted", err)
+	}
+}
+
+func TestReadPhrasePlainContextCancellation(t *testing.T) {
+	tty, _, _ := pipeTTY(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ReadPhraseContext(ctx, tty, PhraseOpts{Plain: true}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+func TestEmergencyRestoreWritesOnlyActiveModes(t *testing.T) {
+	tty, _, outR := pipeTTY(t)
+	tty.EmergencyRestore()
+	tty.mu.Lock()
+	tty.bracketedPaste = true
+	tty.alternateScreen = true
+	tty.mu.Unlock()
+	tty.EmergencyRestore()
+	tty.EmergencyRestore()
+	if err := tty.out.Close(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(outR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "\x1b[?2004l\x1b[?1049l"; string(got) != want {
+		t.Fatalf("cleanup = %q, want %q", got, want)
 	}
 }
 

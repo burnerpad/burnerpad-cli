@@ -1,6 +1,8 @@
 package term
 
 import (
+	"context"
+	"errors"
 	"io"
 	"strconv"
 	"unicode/utf8"
@@ -18,24 +20,52 @@ type ViewerOpts struct {
 // ShowViewer displays a terminal-safe rendition of plaintext per §8.1: on the
 // alternate screen (same buffer discipline as less) to limit primary-scrollback
 // exposure, or — NoAlt — a plain print preceded by the scrollback note. Control
-// and format characters are visibly escaped. Ctrl+C also closes cleanly;
-// process exit is the caller's job (A8).
+// and format characters are visibly escaped.
 func ShowViewer(t *TTY, plaintext []byte, o ViewerOpts) error {
+	return ShowViewerContext(context.Background(), t, plaintext, o)
+}
+
+// ShowViewerContext is ShowViewer with cancellation while the alternate
+// screen waits for a key. Ctrl+C is an interrupt, EOF is a clean close, and
+// other input errors are preserved for the caller.
+func ShowViewerContext(ctx context.Context, t *TTY, plaintext []byte, o ViewerOpts) error {
 	if o.NoAlt {
-		return showViewer(t.Out(), nil, plaintext, o)
+		return showViewerContext(ctx, t.Out(), nil, plaintext, o, nil, nil)
 	}
 	restore, err := t.MakeRaw() // single-key q needs raw mode
 	if err != nil {
 		o.NoAlt = true
-		return showViewer(t.Out(), nil, plaintext, o)
+		return showViewerContext(ctx, t.Out(), nil, plaintext, o, nil, nil)
 	}
 	defer restore()
-	return showViewer(t.Out(), t.ReadEvent, plaintext, o)
+	return showViewerContext(ctx, t.Out(), t.ReadEventContext, plaintext, o,
+		t.enterAlternateScreen, t.leaveAlternateScreen)
 }
 
 // showViewer is ShowViewer minus the terminal acquisition: writer and event
 // source are injected so the screens golden-test against a bytes.Buffer.
 func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o ViewerOpts) error {
+	var nextContext func(context.Context) (Event, error)
+	if next != nil {
+		nextContext = func(context.Context) (Event, error) { return next() }
+	}
+	enter := func() error {
+		_, err := io.WriteString(w, "\x1b[?1049h\x1b[H\x1b[2J")
+		return err
+	}
+	leave := func() { _, _ = io.WriteString(w, "\x1b[?1049l") }
+	return showViewerContext(context.Background(), w, nextContext, plaintext, o, enter, leave)
+}
+
+func showViewerContext(
+	ctx context.Context,
+	w io.Writer,
+	next func(context.Context) (Event, error),
+	plaintext []byte,
+	o ViewerOpts,
+	enterAlternate func() error,
+	leaveAlternate func(),
+) error {
 	n := o.ByteCount
 	if n == 0 {
 		n = len(plaintext)
@@ -51,16 +81,17 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 			return err
 		}
 		if len(plaintext) > 0 && plaintext[len(plaintext)-1] != '\n' {
-			_, err := io.WriteString(w, "\n")
-			return err
+			if _, err := io.WriteString(w, "\n"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return ctx.Err()
 	}
 
-	if _, err := io.WriteString(w, "\x1b[?1049h\x1b[H\x1b[2J"); err != nil { // smcup + clear
+	if err := enterAlternate(); err != nil {
 		return err
 	}
-	defer func() { _, _ = io.WriteString(w, "\x1b[?1049l") }() // always restore the primary screen
+	defer leaveAlternate()
 	if o.NoColor {
 		if _, err := io.WriteString(w, "  "+header+"\r\n\r\n"); err != nil {
 			return err
@@ -77,20 +108,23 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 	}
 
 	for next != nil {
-		ev, err := next()
+		ev, err := next(ctx)
 		if err != nil {
-			break // EOF: nothing left to wait for; close cleanly
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
 		}
 		switch {
 		case ev.Kind == KindRune && (ev.R == 'q' || ev.R == 'Q'):
 			return nil
 		case ev.Kind == KindCtrlC:
-			return nil // clean close; exit is handled by the caller (A8)
+			return ErrInterrupted
 		case ev.Kind == KindPaste:
 			secret.Wipe(ev.Paste) // consumers wipe pastes; the viewer ignores them
 		}
 	}
-	return nil
+	return ctx.Err()
 }
 
 // writeViewerBody renders untrusted bytes without emitting terminal controls.

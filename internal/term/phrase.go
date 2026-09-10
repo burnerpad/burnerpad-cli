@@ -1,6 +1,7 @@
 package term
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -33,8 +34,11 @@ const narrowWidth = 20
 type TTY struct {
 	in, out *os.File
 
-	mu  sync.Mutex
-	raw *term.State // non-nil while raw; EmergencyRestore reads it
+	mu              sync.Mutex
+	raw             *term.State // non-nil while the interactive editor/viewer is raw
+	password        *passwordMode
+	bracketedPaste  bool // true only after this TTY enabled mode 2004
+	alternateScreen bool // true only after this TTY entered mode 1049
 
 	winch     chan struct{}
 	stopWinch func()
@@ -47,6 +51,10 @@ type TTY struct {
 	// save/restore for enableVT); on other GOOSes platformState is empty and
 	// this field is deliberately untouched — a cross-GOOS false positive.
 	plat platformState
+}
+
+type passwordMode struct {
+	restore func()
 }
 
 // OpenTTY opens the controlling terminal, erroring when the process has none
@@ -75,26 +83,99 @@ func (t *TTY) MakeRaw() (restore func(), err error) {
 	if err != nil {
 		return nil, err
 	}
+	t.mu.Lock()
+	if t.raw != nil || t.password != nil {
+		t.mu.Unlock()
+		vtRestore()
+		return nil, errors.New("terminal input mode is already active")
+	}
 	st, err := term.MakeRaw(int(t.in.Fd()))
 	if err != nil {
+		t.mu.Unlock()
 		vtRestore()
 		return nil, err
 	}
-	t.mu.Lock()
 	t.raw = st
+	t.bracketedPaste = true
+	_, _ = io.WriteString(t.out, "\x1b[?2004h")
 	t.mu.Unlock()
-	io.WriteString(t.out, "\x1b[?2004h")
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			io.WriteString(t.out, "\x1b[?2004l")
-			_ = term.Restore(int(t.in.Fd()), st)
 			t.mu.Lock()
-			t.raw = nil
+			owned := t.raw == st
+			paste := owned && t.bracketedPaste
+			if owned {
+				t.raw = nil
+				t.bracketedPaste = false
+			}
 			t.mu.Unlock()
-			vtRestore()
+			if owned {
+				if paste {
+					_, _ = io.WriteString(t.out, "\x1b[?2004l")
+				}
+				_ = term.Restore(int(t.in.Fd()), st)
+				vtRestore()
+			}
 		})
 	}, nil
+}
+
+// makePasswordMode disables echo through a platform-specific input mode.
+// Unlike x/term.ReadPassword, TTY owns the saved state, so cancellation and
+// EmergencyRestore can restore it synchronously. Windows deliberately keeps
+// processed input instead of requiring VT input, preserving legacy conhost.
+func (t *TTY) makePasswordMode() (restore func(), err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.raw != nil || t.password != nil {
+		return nil, errors.New("terminal input mode is already active")
+	}
+	platformRestore, err := t.makePasswordInput()
+	if err != nil {
+		return nil, err
+	}
+	mode := &passwordMode{restore: platformRestore}
+	t.password = mode
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			t.mu.Lock()
+			owned := t.password == mode
+			if owned {
+				t.password = nil
+			}
+			t.mu.Unlock()
+			if owned {
+				mode.restore()
+			}
+		})
+	}, nil
+}
+
+func (t *TTY) enterAlternateScreen() error {
+	t.mu.Lock()
+	if t.alternateScreen {
+		t.mu.Unlock()
+		return errors.New("alternate screen is already active")
+	}
+	t.alternateScreen = true
+	_, err := io.WriteString(t.out, "\x1b[?1049h\x1b[H\x1b[2J")
+	t.mu.Unlock()
+	if err != nil {
+		t.leaveAlternateScreen()
+	}
+	return err
+}
+
+func (t *TTY) leaveAlternateScreen() {
+	t.mu.Lock()
+	active := t.alternateScreen
+	t.alternateScreen = false
+	t.mu.Unlock()
+	if active {
+		_, _ = io.WriteString(t.out, "\x1b[?1049l")
+	}
 }
 
 // EmergencyRestore is the signal-path cleanup (A8): cooked mode, bracketed
@@ -102,13 +183,26 @@ func (t *TTY) MakeRaw() (restore func(), err error) {
 // goroutine, whether or not raw mode or the viewer is active.
 func (t *TTY) EmergencyRestore() {
 	t.mu.Lock()
-	st := t.raw
+	raw := t.raw
+	password := t.password
+	paste := t.bracketedPaste
+	alternate := t.alternateScreen
 	t.raw = nil
+	t.password = nil
+	t.bracketedPaste = false
+	t.alternateScreen = false
 	t.mu.Unlock()
-	if st != nil {
-		_ = term.Restore(int(t.in.Fd()), st)
+	if paste {
+		_, _ = io.WriteString(t.out, "\x1b[?2004l")
 	}
-	io.WriteString(t.out, "\x1b[?2004l\x1b[?1049l")
+	if alternate {
+		_, _ = io.WriteString(t.out, "\x1b[?1049l")
+	}
+	if raw != nil {
+		_ = term.Restore(int(t.in.Fd()), raw)
+	} else if password != nil {
+		password.restore()
+	}
 	t.platformEmergency()
 }
 
@@ -127,15 +221,29 @@ func (t *TTY) SizeChanged() <-chan struct{} { return t.winch }
 
 // ReadEvent returns the next decoded key event, io.EOF at end of input.
 func (t *TTY) ReadEvent() (Event, error) {
-	t.startPump()
-	ev, ok := <-t.events
-	if !ok {
-		if t.readErr != nil && t.readErr != io.EOF {
-			return Event{}, t.readErr
-		}
-		return Event{}, io.EOF
+	return t.ReadEventContext(context.Background())
+}
+
+// ReadEventContext returns the next decoded key event or the context cause.
+// Cancellation selects directly against the TTY-owned pump; it never starts
+// an operation-local goroutine that could outlive its buffer or terminal mode.
+func (t *TTY) ReadEventContext(ctx context.Context) (Event, error) {
+	if err := ctx.Err(); err != nil {
+		return Event{}, err
 	}
-	return ev, nil
+	t.startPump()
+	select {
+	case <-ctx.Done():
+		return Event{}, ctx.Err()
+	case ev, ok := <-t.events:
+		if !ok {
+			if t.readErr != nil && t.readErr != io.EOF {
+				return Event{}, t.readErr
+			}
+			return Event{}, io.EOF
+		}
+		return ev, nil
+	}
 }
 
 // Close releases the terminal. CAUTION: once the input pump has started, its
@@ -230,19 +338,28 @@ type PhraseOpts struct {
 // A valid Seed (§7.3 wrong-passphrase retry) starts the prompt with those
 // words already committed — kept-words status, Backspace steps into them.
 func ReadPhrase(t *TTY, o PhraseOpts) (*secret.Buffer, error) {
+	return ReadPhraseContext(context.Background(), t, o)
+}
+
+// ReadPhraseContext is ReadPhrase with cancellation for every terminal wait,
+// including the accessible cooked-line fallback.
+func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffer, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	min := o.Min
 	if min <= 0 {
 		min = wordlist.PhraseWords
 	}
 	if o.Plain {
-		return readPhrasePlain(t.in, t.out, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min, o.Seed)
 	}
 	if w, _ := t.Size(); w < narrowWidth {
-		return readPhrasePlain(t.in, t.out, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min, o.Seed)
 	}
 	restore, err := t.MakeRaw()
 	if err != nil {
-		return readPhrasePlain(t.in, t.out, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min, o.Seed)
 	}
 	defer restore()
 
@@ -268,9 +385,12 @@ func ReadPhrase(t *TTY, o PhraseOpts) (*secret.Buffer, error) {
 	}
 	paint()
 	for {
-		ev, err := t.readEventOrResize(paint)
+		ev, err := t.readEventOrResizeContext(ctx, paint)
 		if err != nil {
 			finishPromptLine(t)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			return nil, ErrInterrupted
 		}
 		switch ev.Kind {
@@ -295,12 +415,21 @@ func ReadPhrase(t *TTY, o PhraseOpts) (*secret.Buffer, error) {
 	}
 }
 
-// readEventOrResize blocks for the next event, repainting on every resize
-// tick in between (§7.2: "SIGWINCH triggers one repaint at the new width").
-func (t *TTY) readEventOrResize(repaint func()) (Event, error) {
+// readEventOrResizeContext blocks for the next event, repainting on every
+// resize tick in between (§7.2: "SIGWINCH triggers one repaint at the new
+// width").
+func (t *TTY) readEventOrResizeContext(ctx context.Context, repaint func()) (Event, error) {
+	if err := ctx.Err(); err != nil {
+		return Event{}, err
+	}
 	t.startPump()
 	for {
+		if err := ctx.Err(); err != nil {
+			return Event{}, err
+		}
 		select {
+		case <-ctx.Done():
+			return Event{}, ctx.Err()
 		case ev, ok := <-t.events:
 			if !ok {
 				if t.readErr != nil && t.readErr != io.EOF {

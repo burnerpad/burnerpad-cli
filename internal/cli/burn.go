@@ -43,7 +43,7 @@ func runBurn(a *application, flags *burnFlags, positionals []string) error {
 		if flags.tokenFile != "" || flags.tokenFD != -1 {
 			return usage("invalid_credential_source", "a create receipt already contains its management token")
 		}
-		data, readErr := readBounded(a.env.Stdin, 16*1024)
+		data, readErr := readBounded(a.context(), a.env.Stdin, 16*1024)
 		if readErr != nil {
 			return readErr
 		}
@@ -106,7 +106,7 @@ func runBurn(a *application, flags *burnFlags, positionals []string) error {
 	if err := a.discloseServer(server); err != nil {
 		return err
 	}
-	if err := client.Burn(context.Background(), target.ID, token); err != nil {
+	if err := client.Burn(a.context(), target.ID, token); err != nil {
 		return mapAPIError(err, server)
 	}
 	if a.cfg.json {
@@ -129,7 +129,7 @@ func (a *application) readToken(flags *burnFlags) (string, error) {
 		if err != nil {
 			return "", local("cannot read the management-token file")
 		}
-		raw, err = readBounded(f, 256)
+		raw, err = readBounded(a.context(), f, 256)
 		f.Close()
 		if err != nil {
 			return "", err
@@ -140,7 +140,7 @@ func (a *application) readToken(flags *burnFlags) (string, error) {
 			return "", local("cannot read the management-token descriptor")
 		}
 		var err error
-		raw, err = readBounded(f, 256)
+		raw, err = readBounded(a.context(), f, 256)
 		f.Close()
 		if err != nil {
 			return "", err
@@ -150,10 +150,10 @@ func (a *application) readToken(flags *burnFlags) (string, error) {
 		if err != nil {
 			return "", usage("invalid_credential_source", "a protected management-token source is required")
 		}
-		raw, err = term.ReadPassword(t, "Management token: ")
+		raw, err = term.ReadPasswordContext(a.context(), t, "Management token: ")
 		if err != nil {
-			if errors.Is(err, term.ErrInterrupted) {
-				return "", commandError{exit: 130}
+			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
+				return "", interrupted(err)
 			}
 			return "", local("cannot read the management token from the terminal")
 		}

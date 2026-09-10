@@ -174,6 +174,16 @@ Errors are flat and secret-free:
 | `10` | Internal failure |
 | `130`, `143` | SIGINT or SIGTERM |
 
+The first SIGINT or SIGTERM cancels outstanding work but does not abandon it. Burnerpad waits for a mutation
+request to be classified and for required handoff and cleanup attempts to finish. If cancellation leaves an
+already-transmitted mutation unconfirmed, its operation-specific outcome-unknown error (exit `9`) takes
+precedence. A definitive command/local failure also remains authoritative; a confirmed success completes its
+required handoff and then returns `130`/`143`. Signal exits do not emit a JSON error object. Interrupting a
+clipboard countdown attempts the clear before exiting. If cancellation was already pending when confirmed
+one-time plaintext became ready, terminal delivery uses persistent plain rendering instead of an
+alternate-screen wait; an already-selected clipboard handoff completes its configured dwell. A second signal
+restores the operating system's immediate termination behavior and can therefore bypass best-effort cleanup.
+
 ## Security model
 
 The server receives only opaque ciphertext. Share links contain no decryption key; the passphrase

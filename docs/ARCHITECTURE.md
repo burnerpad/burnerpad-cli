@@ -161,6 +161,7 @@ reservation made before a failed claim is removed only by the invocation that cr
 
 OSC 52 is the only clipboard mechanism. Create copies the link. Reveal/decrypt copy plaintext, remain alive
 for a default 45-second delay, then best-effort clear and warn that clipboard managers can retain history.
+Cancellation during that delay attempts the same clear synchronously before returning.
 
 ## Machine and exit contract
 
@@ -168,8 +169,17 @@ JSON uses four fixed success structs and one flat error struct. Error fields nev
 phrase, token, ciphertext, plaintext, raw response, path, or nested error. `retry_after` appears only when a
 server supplied it. Field names and exit meanings are documented in the README and ADR-0028.
 
-Signals return 130/143 without synthesizing JSON. Exit zero means the selected artifact reached its
-destination, not merely that crypto or HTTP succeeded.
+One Run-owned cancellation context covers input, mutation transport, interactive waits, and the clipboard
+timer. On the first signal, Run cancels and joins command dispatch before restoring the terminal or returning.
+If cancellation leaves an already-transmitted mutation unconfirmed, its operation-specific outcome-unknown
+result takes precedence. Definitive command/local failures found while joining also remain authoritative; a
+confirmed success completes required post-success handoff, recovery, output, and cleanup attempts before the
+signal result. Signal exits return 130/143 without synthesizing JSON. The production signal subscription is
+stopped after the first signal so a second signal restores immediate OS termination. Exit zero means the
+selected artifact reached its destination, not merely that crypto or HTTP succeeded. If confirmed one-time
+plaintext becomes ready with cancellation already pending, the handoff cannot safely reuse that canceled
+wait: terminal delivery becomes persistent plain output, and clipboard delivery completes its configured
+dwell. A signal arriving after an interactive delivery began cancels that wait normally.
 
 ## Release and compatibility gates
 

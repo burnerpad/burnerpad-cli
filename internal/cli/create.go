@@ -74,7 +74,7 @@ func runCreate(a *application, flags *createFlags, positionals []string) error {
 	if err := a.discloseServer(server); err != nil {
 		return err
 	}
-	created, err := client.Create(context.Background(), blob, ttl)
+	created, err := client.Create(a.context(), blob, ttl)
 	if err != nil {
 		return mapAPIError(err, server)
 	}
@@ -124,12 +124,12 @@ func (a *application) readCreatePlaintext(path string) ([]byte, error) {
 			return nil, local("cannot read the plaintext input file")
 		}
 		defer f.Close()
-		data, err = readBounded(f, maxPlaintext)
+		data, err = readBounded(a.context(), f, maxPlaintext)
 	case !a.env.StdinTTY:
-		data, err = readBounded(a.env.Stdin, maxPlaintext)
+		data, err = readBounded(a.context(), a.env.Stdin, maxPlaintext)
 	default:
 		fmt.Fprintln(a.env.Stderr, "Secret — type or paste text, then finish with EOF:")
-		data, err = readBounded(a.env.Stdin, maxPlaintext)
+		data, err = readBounded(a.context(), a.env.Stdin, maxPlaintext)
 	}
 	if err != nil {
 		return nil, err
@@ -143,12 +143,47 @@ func (a *application) readCreatePlaintext(path string) ([]byte, error) {
 	return data, nil
 }
 
-func readBounded(reader io.Reader, limit int) ([]byte, error) {
-	data, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+func readBounded(ctx context.Context, reader io.Reader, limit int) ([]byte, error) {
+	read := func() ([]byte, error) {
+		return io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+	}
+	var data []byte
+	var err error
+	if closer, ok := reader.(io.Closer); ok {
+		stopClose := context.AfterFunc(ctx, func() { _ = closer.Close() })
+		data, err = read()
+		stopClose()
+	} else {
+		type result struct {
+			data []byte
+			err  error
+		}
+		resultC := make(chan result)
+		go func() {
+			got, readErr := read()
+			select {
+			case resultC <- result{data: got, err: readErr}:
+			case <-ctx.Done():
+				secret.Wipe(got)
+			}
+		}()
+		select {
+		case got := <-resultC:
+			data, err = got.data, got.err
+		case <-ctx.Done():
+			return nil, localCause("cannot read input", ctx.Err())
+		}
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		secret.Wipe(data)
+		return nil, localCause("cannot read input", ctxErr)
+	}
 	if err != nil {
+		secret.Wipe(data)
 		return nil, local("cannot read input")
 	}
 	if len(data) > limit {
+		secret.Wipe(data)
 		return nil, usage("invalid_input", "input exceeds the supported size limit")
 	}
 	return data, nil
@@ -177,7 +212,7 @@ func (a *application) readPassphrase(ask bool, path string, descriptor int) ([]b
 		if openErr != nil {
 			return nil, local("cannot read the passphrase file")
 		}
-		raw, err = readBounded(f, wordlist.MaxPhraseBytes)
+		raw, err = readBounded(a.context(), f, wordlist.MaxPhraseBytes)
 		f.Close()
 	case descriptor != -1:
 		if descriptor < 3 {
@@ -187,17 +222,17 @@ func (a *application) readPassphrase(ask bool, path string, descriptor int) ([]b
 		if f == nil {
 			return nil, local("cannot read the passphrase descriptor")
 		}
-		raw, err = readBounded(f, wordlist.MaxPhraseBytes)
+		raw, err = readBounded(a.context(), f, wordlist.MaxPhraseBytes)
 		f.Close()
 	default:
 		t, ttyErr := a.terminal()
 		if ttyErr != nil {
 			return nil, usage("invalid_credential_source", "a protected passphrase source is required")
 		}
-		buffer, promptErr := term.ReadPhrase(t, term.PhraseOpts{Plain: a.cfg.plain, NoColor: a.cfg.noColor})
+		buffer, promptErr := term.ReadPhraseContext(a.context(), t, term.PhraseOpts{Plain: a.cfg.plain, NoColor: a.cfg.noColor})
 		if promptErr != nil {
-			if errors.Is(promptErr, term.ErrInterrupted) {
-				return nil, commandError{exit: 130}
+			if errors.Is(promptErr, term.ErrInterrupted) || errors.Is(promptErr, context.Canceled) {
+				return nil, interrupted(promptErr)
 			}
 			return nil, local("cannot read the passphrase from the terminal")
 		}

@@ -35,7 +35,7 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 			return err
 		}
 	} else if a.env.StdinPiped {
-		data, err := readBounded(a.env.Stdin, 4096)
+		data, err := readBounded(a.context(), a.env.Stdin, 4096)
 		if err != nil {
 			return err
 		}
@@ -45,10 +45,10 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 		if err != nil {
 			return usage("invalid_input", "a full share URL is required")
 		}
-		line, err := term.ReadLine(t, "Share URL: ")
+		line, err := term.ReadLineContext(a.context(), t, "Share URL: ")
 		if err != nil {
-			if errors.Is(err, term.ErrInterrupted) {
-				return commandError{exit: 130}
+			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
+				return interrupted(err)
 			}
 			return local("cannot read the share URL from the terminal")
 		}
@@ -95,7 +95,7 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 	if err := a.discloseServer(server); err != nil {
 		return err
 	}
-	blob, err := client.Reveal(context.Background(), target.ID)
+	blob, err := client.Reveal(a.context(), target.ID)
 	if err != nil {
 		return mapAPIError(err, server)
 	}
@@ -184,6 +184,17 @@ func (a *application) clipboardWriter() (io.Writer, error) {
 }
 
 func (a *application) deliverPlaintext(d *destination, status, server string, plaintext []byte) error {
+	// Once plaintext is ready—especially after a one-time claim—a signal that
+	// arrived during local decryption must not erase the destination as soon as
+	// it is entered. Complete that already-pending handoff: clipboard delivery
+	// gets its configured dwell, while the viewer uses persistent plain output
+	// instead of waiting on the alternate screen. When delivery begins before
+	// cancellation, the Run context still cancels its interactive wait.
+	deliveryCtx := a.context()
+	pendingCancellation := deliveryCtx.Err() != nil
+	if pendingCancellation {
+		deliveryCtx = context.WithoutCancel(deliveryCtx)
+	}
 	switch {
 	case a.cfg.json:
 		if status == "revealed" {
@@ -206,17 +217,36 @@ func (a *application) deliverPlaintext(d *destination, status, server string, pl
 		}
 		fmt.Fprintf(a.env.Stderr, "burnerpad: plaintext copied via OSC 52; best-effort clear in %s (clipboard managers may retain history)\n", d.clip.duration)
 		timer := time.NewTimer(d.clip.duration)
-		<-timer.C
+		var canceled error
+		select {
+		case <-timer.C:
+		case <-deliveryCtx.Done():
+			canceled = deliveryCtx.Err()
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
 		if err := term.OSC52Clear(d.clipWriter); err != nil {
 			a.warn("the best-effort clipboard clear sequence could not be written")
+		}
+		if canceled != nil {
+			return interrupted(canceled)
 		}
 	case a.env.StdoutTTY:
 		t, err := a.terminal()
 		if err != nil {
 			return err
 		}
-		if err := term.ShowViewer(t, plaintext, term.ViewerOpts{NoAlt: a.cfg.plain, NoColor: a.cfg.noColor}); err != nil {
-			return local("cannot display plaintext")
+		if err := term.ShowViewerContext(deliveryCtx, t, plaintext, term.ViewerOpts{
+			NoAlt: pendingCancellation || a.cfg.plain, NoColor: a.cfg.noColor,
+		}); err != nil {
+			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
+				return interrupted(err)
+			}
+			return localCause("cannot display plaintext", err)
 		}
 	default:
 		if _, err := a.env.Stdout.Write(plaintext); err != nil {

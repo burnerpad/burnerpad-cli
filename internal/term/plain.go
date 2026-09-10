@@ -2,6 +2,7 @@ package term
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -23,6 +24,22 @@ const suggestMaxDist = 2
 // — a screen-reader user must hear the state; an invalid seed is ignored.
 func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.Buffer, error) {
 	br := bufio.NewReader(r)
+	return readPhrasePlainLines(w, min, seed, func() ([]byte, error) {
+		line, err := readLine(br)
+		if err != nil {
+			return nil, ErrInterrupted
+		}
+		return line, nil
+	})
+}
+
+func readPhrasePlainContext(ctx context.Context, t *TTY, min int, seed []string) (*secret.Buffer, error) {
+	return readPhrasePlainLines(t.out, min, seed, func() ([]byte, error) {
+		return t.readLineContext(ctx)
+	})
+}
+
+func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() ([]byte, error)) (*secret.Buffer, error) {
 	fmt.Fprintf(w, "Passphrase — one word per line, or the whole phrase on one line.\n")
 	fmt.Fprintf(w, "An empty line submits once at least %d words are entered; every word must be on the list.\n", min)
 	words := wordlist.Words()
@@ -37,9 +54,9 @@ func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.
 	}
 	for {
 		fmt.Fprint(w, plainLabel(len(committed), min))
-		line, err := readLine(br)
+		line, err := nextLine()
 		if err != nil {
-			return nil, ErrInterrupted // EOF at a prompt = abort
+			return nil, err
 		}
 		s := string(line)
 		switch {

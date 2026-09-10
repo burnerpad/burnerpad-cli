@@ -49,6 +49,14 @@ func TestDecoderSingleBytes(t *testing.T) {
 	}
 }
 
+func TestDecoderCoalescesCookedCRLF(t *testing.T) {
+	got := feedAll(newKeyDecoder(), []byte("a\r\nb\n"))
+	want := []Event{rn('a'), kd(KindEnter), rn('b'), kd(KindEnter)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("events = %+v, want %+v", got, want)
+	}
+}
+
 // The §7.2 ESC row: sequences are swallowed whole — ESC [ A never injects
 // an 'a', and none of the navigation keys produce anything but one ignore.
 func TestDecoderSwallowsSequencesWhole(t *testing.T) {

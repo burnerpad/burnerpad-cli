@@ -74,7 +74,7 @@ func mapAPIError(err error, server string) error {
 		return nil
 	}
 	if errors.Is(err, api.ErrUnavailable) {
-		return commandError{exit: 4, code: "secret_unavailable", message: "the secret is unavailable", server: server}
+		return commandError{exit: 4, code: "secret_unavailable", message: "the secret is unavailable", server: server, cause: err}
 	}
 	var unknown api.OutcomeUnknownError
 	if errors.As(err, &unknown) {
@@ -82,11 +82,11 @@ func mapAPIError(err error, server string) error {
 		if code == "" {
 			code = "internal"
 		}
-		return commandError{exit: 9, code: code, message: "the request may have changed server state, but its outcome could not be confirmed", server: server}
+		return commandError{exit: 9, code: code, message: "the request may have changed server state, but its outcome could not be confirmed", server: server, cause: err}
 	}
 	var limited api.RateLimitedError
 	if errors.As(err, &limited) {
-		return commandError{exit: 7, code: "rate_limited", message: "the server rate-limited the request", server: server, retryAfter: limited.RetryAfter}
+		return commandError{exit: 7, code: "rate_limited", message: "the server rate-limited the request", server: server, retryAfter: limited.RetryAfter, cause: err}
 	}
 	var temporary api.TemporaryError
 	if errors.As(err, &temporary) {
@@ -94,20 +94,25 @@ func mapAPIError(err error, server string) error {
 		if temporary.Cause != nil {
 			code, message = "network_unavailable", "the server could not be reached"
 		}
-		return commandError{exit: 7, code: code, message: message, server: server, retryAfter: temporary.RetryAfter}
+		return commandError{exit: 7, code: code, message: message, server: server, retryAfter: temporary.RetryAfter, cause: err}
 	}
 	var rejected api.RejectedError
 	if errors.As(err, &rejected) {
-		return commandError{exit: 6, code: "server_rejected", message: "the server rejected the request", server: server}
+		return commandError{exit: 6, code: "server_rejected", message: "the server rejected the request", server: server, cause: err}
 	}
 	var protocol api.ProtocolError
 	if errors.As(err, &protocol) {
-		return commandError{exit: 8, code: "invalid_server_response", message: "the server returned an invalid response", server: server}
+		return commandError{exit: 8, code: "invalid_server_response", message: "the server returned an invalid response", server: server, cause: err}
 	}
-	return commandError{exit: 10, code: "internal", message: "unexpected internal failure", server: server}
+	return commandError{exit: 10, code: "internal", message: "unexpected internal failure", server: server, cause: err}
 }
 
 func mapDecryptError(err error, server string) error {
+	var command commandError
+	if errors.As(err, &command) {
+		command.server = server
+		return command
+	}
 	if errors.Is(err, envelope.ErrAuthFail) {
 		return commandError{exit: 5, code: "passphrase_failed", message: "the passphrase did not open the secret", server: server}
 	}

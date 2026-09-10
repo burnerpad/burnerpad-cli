@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,6 +36,7 @@ type application struct {
 	env Env
 	cfg config
 	tty *term.TTY
+	ctx context.Context
 }
 
 type commandError struct {
@@ -43,9 +45,11 @@ type commandError struct {
 	message    string
 	server     string
 	retryAfter *int64
+	cause      error
 }
 
 func (e commandError) Error() string { return e.message }
+func (e commandError) Unwrap() error { return e.cause }
 
 func usage(code, message string) error {
 	return commandError{exit: 2, code: code, message: message}
@@ -53,6 +57,21 @@ func usage(code, message string) error {
 
 func local(message string) error {
 	return commandError{exit: 3, code: "local_io_failed", message: message}
+}
+
+func localCause(message string, cause error) error {
+	return commandError{exit: 3, code: "local_io_failed", message: message, cause: cause}
+}
+
+func interrupted(cause error) error {
+	return commandError{exit: 130, cause: cause}
+}
+
+func (a *application) context() context.Context {
+	if a.ctx == nil {
+		return context.Background()
+	}
+	return a.ctx
 }
 
 func Run(env Env) (exit int) {
@@ -68,7 +87,9 @@ func Run(env Env) (exit int) {
 	if env.Getenv == nil {
 		env.Getenv = func(string) string { return "" }
 	}
-	a := &application{env: env}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := &application{env: env, ctx: ctx}
 	for _, arg := range env.Args {
 		if arg == "--json" || arg == "--json=true" {
 			a.cfg.json = true
@@ -92,7 +113,29 @@ func Run(env Env) (exit int) {
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		signals = ch
 		stop = func() { signal.Stop(ch) }
-		defer stop()
+		defer func() {
+			if stop != nil {
+				stop()
+			}
+		}()
+	}
+
+	// A signal already waiting when Run starts wins before dispatch can send a
+	// mutation request. A closed injected channel means "no signal source".
+	if signals != nil {
+		select {
+		case sig, ok := <-signals:
+			if ok {
+				if stop != nil {
+					stop()
+					stop = nil
+				}
+				cancel()
+				return signalExit(sig)
+			}
+			signals = nil
+		default:
+		}
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -103,15 +146,56 @@ func Run(env Env) (exit int) {
 		}()
 		done <- dispatch(a)
 	}()
-	select {
-	case sig := <-signals:
-		if sig == syscall.SIGTERM {
-			return 143
-		}
-		return 130
-	case err := <-done:
+	sig, signaled, err := waitDispatch(signals, done)
+	if !signaled {
 		return a.report(err)
 	}
+	if stop != nil {
+		stop() // a second production signal regains its OS default
+		stop = nil
+	}
+	cancel()
+	err = <-done // join: mutation classification and required cleanup win
+	return a.reportAfterSignal(err, signalExit(sig))
+}
+
+func waitDispatch(signals <-chan os.Signal, done <-chan error) (os.Signal, bool, error) {
+	for {
+		select {
+		case err := <-done:
+			return nil, false, err
+		case sig, ok := <-signals:
+			if !ok {
+				signals = nil
+				continue
+			}
+			// If both became ready, a completed command is authoritative.
+			select {
+			case err := <-done:
+				return nil, false, err
+			default:
+				return sig, true, nil
+			}
+		}
+	}
+}
+
+func signalExit(sig os.Signal) int {
+	if sig == syscall.SIGTERM {
+		return 143
+	}
+	return 130
+}
+
+func (a *application) reportAfterSignal(err error, exit int) int {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, term.ErrInterrupted) {
+		return exit
+	}
+	var command commandError
+	if errors.As(err, &command) && command.exit >= 128 {
+		return exit
+	}
+	return a.report(err)
 }
 
 func (a *application) report(err error) int {

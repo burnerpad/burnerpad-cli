@@ -1,6 +1,6 @@
 # ADR-0028: Freeze the minimal machine interface for version one
 
-Date: 2026-09-10 · Status: Accepted · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
+Date: 2026-09-10 · Status: Accepted, amended for mutation-aware signals · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
 
 ## Context
 
@@ -47,6 +47,14 @@ Version one freezes these exit statuses:
 | `9` | Mutation outcome unknown |
 | `10` | Internal failure |
 | `130`, `143` | Process terminated by the corresponding signal |
+
+The first SIGINT or SIGTERM cancels and joins the active command. If cancellation leaves an
+already-transmitted mutation unconfirmed, the operation-specific exit-`9` result takes precedence. A
+definitive command/local failure found while joining remains authoritative; a confirmed success completes its
+required handoff before the process returns `130` or `143`. Signal exits emit no ordinary JSON error. A second
+production signal restores the operating system's immediate termination behavior. If confirmed one-time
+plaintext becomes ready with cancellation already pending, terminal handoff uses persistent plain rendering
+and clipboard handoff completes its configured dwell instead of immediately erasing the destination.
 
 ## Consequences
 

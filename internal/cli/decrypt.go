@@ -41,13 +41,13 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 	defer func() { secret.Wipe(phrase) }()
 	var encoded []byte
 	if flags.blobFile == "-" {
-		encoded, err = readBounded(a.env.Stdin, 100_000)
+		encoded, err = readBounded(a.context(), a.env.Stdin, 100_000)
 	} else {
 		f, openErr := os.Open(flags.blobFile)
 		if openErr != nil {
 			return local("cannot read the ciphertext file")
 		}
-		encoded, err = readBounded(f, 100_000)
+		encoded, err = readBounded(a.context(), f, 100_000)
 		f.Close()
 	}
 	if err != nil {

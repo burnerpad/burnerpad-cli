@@ -11,6 +11,9 @@ derived from the immutable release tag and never hardcoded in source.
   bytes, decoded JSON values, or the bytes encoded into OSC 52 requests.
 - Acquire the implicit viewer's controlling terminal before a destructive reveal request can consume the secret.
 - Classify every undocumented post-send mutation status as operation-specific outcome unknown.
+- Cancel and join commands on the first termination signal so transmitted mutations remain classifiable,
+  create/reveal handoffs are not abandoned, clipboard clears run, pending post-claim terminal delivery remains
+  persistently visible, and viewer Ctrl+C exits as an interruption.
 
 ## [1.0.0] - 2026-09-10
 
