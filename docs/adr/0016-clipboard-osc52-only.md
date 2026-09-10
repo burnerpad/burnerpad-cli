@@ -2,8 +2,9 @@
 
 Date: 2026-08-18 · Status: Superseded by [ADR-0033](0033-explicit-plaintext-destinations.md) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §8.1, §18
 
-ADR-0033 retains the OSC 52 decision, extends the same behavior to local decryption, and aligns failures with
-the version-one exit table.
+ADR-0033 retained and extended this decision. [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md)
+later amends ADR-0033 and reverses the clipboard decision before the first release because terminal acceptance
+and payload completeness cannot be established.
 
 ## Context
 

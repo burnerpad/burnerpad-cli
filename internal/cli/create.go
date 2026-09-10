@@ -44,13 +44,6 @@ func runCreate(a *application, flags *createFlags, positionals []string) error {
 	if err != nil {
 		return usage("invalid_input", "the selected server is not a safe origin")
 	}
-	var clipOut io.Writer
-	if flags.clip {
-		clipOut, err = a.clipboardWriter()
-		if err != nil {
-			return attachServer(err, server)
-		}
-	}
 	plaintext, err := a.readCreatePlaintext(flags.input)
 	if err != nil {
 		return attachServer(err, server)
@@ -102,11 +95,6 @@ func runCreate(a *application, flags *createFlags, positionals []string) error {
 			if _, err := fmt.Fprintf(a.env.Stderr, "burnerpad: note: requested ttl was clamped to %s\n", durationLabel(created.TTL)); err != nil {
 				return attachServer(local("cannot write the create handoff"), server)
 			}
-		}
-	}
-	if flags.clip {
-		if err := term.OSC52Copy(clipOut, []byte(link)); err != nil {
-			return attachServer(local("cannot write the OSC 52 clipboard sequence"), server)
 		}
 	}
 	return nil

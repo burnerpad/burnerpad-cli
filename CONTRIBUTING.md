@@ -41,11 +41,11 @@ release touching `internal/term`, walk this by hand where possible
 (ARCHITECTURE.md §20):
 
 1. Windows Terminal: `burnerpad create` full interactive flow; autocomplete
-   ghost text renders; alt-screen viewer opens and restores; OSC 52 copy works.
+   ghost text renders; alt-screen viewer opens and restores.
 2. Legacy conhost: VT-enable fails → automatic `--plain`; plain print carries
-   the scrollback warning; unsupported clipboard delivery exits 3 before claim.
+   the scrollback warning.
 3. Ctrl+C at each phase of `reveal`: pre-claim (exit 130, nothing lost),
-   post-claim with `--keep-blob`, viewer, and `--clip` countdown.
+   post-claim with `--keep-blob`, and viewer.
 4. macOS Terminal + iTerm2: raw-mode prompt, bracketed paste of a full phrase,
    SIGWINCH mid-prompt.
 

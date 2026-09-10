@@ -7,16 +7,16 @@ burnerpad - encrypted, one-time text secrets compatible with burnerpad-lite
 # SYNOPSIS
 
 *burnerpad create* [*--server* _ORIGIN_] [*--ttl* _DURATION_] [*--input* _FILE_]
-[*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_] [*--json*] [*--clip*]
+[*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_] [*--json*]
 
 *burnerpad reveal* [*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_]
-[*--keep-blob* _FILE_] [*--out* _FILE_ | *--clip*[=_DURATION_] | *--json*] _FULL_URL_
+[*--keep-blob* _FILE_] [*--out* _FILE_ | *--json*] _FULL_URL_
 
 *burnerpad burn* [*--server* _ORIGIN_] [*--token-file* _FILE_ | *--token-fd* _FD_]
 [_FULL_URL_ | _ID_]
 
 *burnerpad decrypt* *--blob-file* _FILE_|- [*--ask* | *--passphrase-file* _FILE_ |
-*--passphrase-fd* _FD_] [*--out* _FILE_ | *--clip*[=_DURATION_] | *--json*]
+*--passphrase-fd* _FD_] [*--out* _FILE_ | *--json*]
 
 *burnerpad* { *words* | *completion* _SHELL_ | *version* | *licenses* | *help* [_COMMAND_] }
 
@@ -61,7 +61,7 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 	Whole-operation HTTP deadline. Default: 12s.
 
 *--json*
-	Emit one stable JSON success or error object. Mutually exclusive with *--out* and *--clip*.
+	Emit one stable JSON success or error object. Mutually exclusive with *--out*.
 
 *--quiet*
 	Suppress decoration. Security warnings, server disclosure, and necessary create recovery data remain.
@@ -92,10 +92,6 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 *--out* _FILE_
 	Write plaintext to a newly created owner-only file. Existing paths are never overwritten.
 
-*--clip*[=_DURATION_]
-	Use OSC 52 instead of display. Reveal/decrypt default to a 45s best-effort clear; clipboard managers may
-	retain history. Create copies only its share link.
-
 # PASSPHRASES
 
 Phrases contain 7-64 distinct members of the embedded EFF Short Wordlist #2. ASCII whitespace and case are
@@ -113,7 +109,7 @@ error.
 
 # EXIT STATUS
 
-0 success; 2 invalid command/option/input/credential source; 3 local I/O/terminal/clipboard failure;
+0 success; 2 invalid command/option/input/credential source; 3 local I/O/terminal failure;
 4 secret unavailable; 5 passphrase or plaintext validation failure; 6 definitive server rejection;
 7 network/rate-limit/temporary service failure; 8 invalid server response or unsupported ciphertext;
 9 mutation outcome unknown; 10 internal failure; 130 SIGINT; 143 SIGTERM.
@@ -122,8 +118,7 @@ The first signal cancels and joins the command. A transmitted mutation left unco
 instead of hiding its uncertainty behind 130/143; definitive local failures remain authoritative, and a
 confirmed success finishes required handoff and cleanup attempts before returning 130/143. A second signal
 restores immediate operating-system termination. Confirmed one-time plaintext that becomes ready after
-cancellation uses persistent plain terminal output, or completes an already-selected clipboard dwell, instead
-of being flashed and erased by a canceled wait.
+cancellation uses persistent plain terminal output instead of being flashed and erased by a canceled wait.
 
 # ENVIRONMENT
 
@@ -137,8 +132,9 @@ _BURNERPAD_PLAIN_, _NO_COLOR_, _TERM_, _CI_
 
 Share links contain no key. Send the link and phrase over separate channels. A URL supplied in argv is
 accepted with a shell-history warning. There is no redirect following, TLS-verification bypass, telemetry,
-configuration file, update check, or runtime server probe. Memory wiping and clipboard clearing are best
-effort; see _SECURITY.md_ for limits.
+configuration file, update check, or runtime server probe. Memory wiping is best effort. There is no built-in
+clipboard integration because terminal delivery cannot be verified; external clipboard pipelines are
+caller-owned. See _SECURITY.md_ for limits.
 
 # SEE ALSO
 

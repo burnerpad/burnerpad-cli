@@ -90,7 +90,7 @@ preserve the blob — the process now holds the only copy in the universe).
 | **free-form mode** | Ctrl+O fallback: masked line entry for non-wordlist passphrases other clients may mint (list-locking is a burnerpad-phrase optimization, not a format rule) (§7.2). |
 | **plain mode** | `--plain` / `BURNERPAD_PLAIN=1` / `CI` / `TERM=dumb`: line-based prompts, no raw mode, no ANSI; the accessibility-first equivalent path (§7.6). |
 | **alternate-screen viewer** | The `less`-style reveal display on a TTY: a terminal-safe plaintext rendition is shown on the alternate screen; `q` returns while the alternate screen limits primary-scrollback exposure (§8.1). |
-| **OSC 52** | The terminal escape that lets the *terminal* (not an executed helper binary) write the clipboard; works over SSH; the only clipboard mechanism the CLI uses (§8.1). |
+| **OSC 52** | A retired pre-release terminal clipboard mechanism. The CLI removed it because the terminal cannot acknowledge acceptance or payload completeness; see ADR-0035. |
 | **bracketed paste** | Terminal mode 2004: a paste arrives delimited by markers, letting the prompt validate a whole phrase atomically — all words commit, or the entire paste is rejected (§7.2). |
 | **stream discipline** | The §5.1 contract: stdout = artifact only; stderr = everything else; interactivity decided solely by `term.IsTerminal` per fd. |
 | **scrubber** | `output.scrub()` at the single output boundary: redacts `#…` patterns from every error/log line — defense in depth for the bug not yet written (§17, M5). |

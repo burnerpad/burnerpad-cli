@@ -77,7 +77,7 @@ options.
 ```text
 burnerpad create [--server ORIGIN] [--ttl DURATION] [--input FILE]
                  [--ask | --passphrase-file FILE | --passphrase-fd FD]
-                 [--json] [--clip]
+                 [--json]
 ```
 
 Plaintext comes from exactly one source: the interactive composer, piped stdin, or `--input FILE`.
@@ -97,7 +97,7 @@ substitute another valid secret encrypted under the same phrase.
 ```text
 burnerpad reveal [--ask | --passphrase-file FILE | --passphrase-fd FD]
                  [--keep-blob FILE]
-                 [--out FILE | --clip[=DURATION] | --json]
+                 [--out FILE | --json]
                  FULL_SHARE_URL
 ```
 
@@ -125,7 +125,7 @@ are never accepted through argv or environment variables.
 ```text
 burnerpad decrypt --blob-file FILE|-
                   [--ask | --passphrase-file FILE | --passphrase-fd FD]
-                  [--out FILE | --clip[=DURATION] | --json]
+                  [--out FILE | --json]
 ```
 
 The blob format is canonical unpadded base64url with one optional terminal newline—the exact format
@@ -138,10 +138,11 @@ alternate screen when available and the same renderer in `--plain`/fallback mode
 readable, LF/CRLF remain line breaks, and other control, format, and non-graphic characters are shown as
 inert Go-style escapes such as `\t`, `\x1b`, and `\u202e`. This display is intentionally not byte-exact.
 Piped stdout and `--out` receive the original authenticated UTF-8 bytes; decoding JSON's `plaintext`
-string reproduces those bytes exactly. The OSC 52 request encodes the original bytes without the viewer's
-transformation, but terminal acceptance and truncation are unverifiable. `--out` creates a new owner-only
-file and never overwrites. Clipboard delivery defaults to a 45-second best-effort clear and warns that
-clipboard managers may retain history. `--json`, `--out`, and `--clip` are mutually exclusive.
+string reproduces those bytes exactly. `--out` creates a new owner-only file and never overwrites; `--json`
+and `--out` are mutually exclusive. Burnerpad has no built-in clipboard destination because terminal
+clipboard protocols cannot verify acceptance or completeness. A caller may pipe byte-exact stdout to its
+own clipboard tool, but owns that tool and its retention behavior; use `--keep-blob` before a destructive
+reveal when that external delivery may need recovery.
 
 Stable JSON successes are:
 
@@ -164,7 +165,7 @@ Errors are flat and secret-free:
 |---:|---|
 | `0` | Requested artifact reached its destination |
 | `2` | Invalid command, option, input, or credential source |
-| `3` | Local terminal, file, clipboard, or output failure |
+| `3` | Local terminal, file, or output failure |
 | `4` | Secret unavailable |
 | `5` | Passphrase failed or authenticated plaintext was not UTF-8 |
 | `6` | Server definitively rejected the request |
@@ -179,10 +180,10 @@ request to be classified and for required handoff and cleanup attempts to finish
 already-transmitted mutation unconfirmed, its operation-specific outcome-unknown error (exit `9`) takes
 precedence. A definitive command/local failure also remains authoritative; a confirmed success completes its
 required handoff and then returns `130`/`143`. Signal exits do not emit a JSON error object. Interrupting a
-clipboard countdown attempts the clear before exiting. If cancellation was already pending when confirmed
-one-time plaintext became ready, terminal delivery uses persistent plain rendering instead of an
-alternate-screen wait; an already-selected clipboard handoff completes its configured dwell. A second signal
-restores the operating system's immediate termination behavior and can therefore bypass best-effort cleanup.
+viewer restores the terminal before exiting. If cancellation was already pending when confirmed one-time
+plaintext became ready, terminal delivery uses persistent plain rendering instead of an alternate-screen
+wait. A second signal restores the operating system's immediate termination behavior and can therefore bypass
+best-effort cleanup.
 
 ## Security model
 
@@ -195,8 +196,8 @@ Passphrases and management tokens have no argv or environment interface. The CLI
 persistent state, telemetry, update check, or additional network probe. Go memory wiping and page
 locking are best effort; endpoint compromise, keyloggers, shell history, clipboard history, and
 terminal scrollback remain outside the CLI's control. Plain mode can retain the safe rendition in
-scrollback. A caller that sends byte-exact pipe, file, decoded-JSON, or clipboard output to a terminal assumes
-the risk of interpreting its controls. See [SECURITY.md](SECURITY.md).
+scrollback. A caller that sends byte-exact pipe, file, or decoded-JSON output to a terminal assumes the risk
+of interpreting its controls. See [SECURITY.md](SECURITY.md).
 
 ## Build and test
 

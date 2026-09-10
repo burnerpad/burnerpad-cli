@@ -49,7 +49,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 	t.Run("piped stdout", func(t *testing.T) {
 		var stdout bytes.Buffer
 		a := &application{env: Env{Stdout: &stdout}}
-		if err := a.deliverPlaintext(&destination{}, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(nil, "revealed", "https://example.com", payload); err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(stdout.Bytes(), payload) {
@@ -60,7 +60,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 	t.Run("JSON", func(t *testing.T) {
 		var stdout bytes.Buffer
 		a := &application{env: Env{Stdout: &stdout}, cfg: config{json: true}}
-		if err := a.deliverPlaintext(&destination{}, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(nil, "revealed", "https://example.com", payload); err != nil {
 			t.Fatal(err)
 		}
 		var got revealResult
@@ -79,7 +79,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 			t.Fatal(err)
 		}
 		a := &application{env: Env{}}
-		if err := a.deliverPlaintext(&destination{out: out}, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(out, "revealed", "https://example.com", payload); err != nil {
 			out.discard()
 			t.Fatal(err)
 		}
@@ -166,11 +166,42 @@ func TestCurrentProcessBurnReceipt(t *testing.T) {
 }
 
 func TestCurrentProcessRejectsRetiredSurface(t *testing.T) {
-	for _, args := range [][]string{{"open"}, {"report"}, {"reveal", "--force"}, {"create", "--words", "8"}} {
+	for _, args := range [][]string{
+		{"open"},
+		{"report"},
+		{"reveal", "--force"},
+		{"create", "--words", "8"},
+		{"create", "--clip"},
+		{"reveal", "--clip"},
+		{"reveal", "--clip=1s"},
+		{"decrypt", "--clip"},
+	} {
 		e, _, _ := contractEnv(args, "")
 		if code := Run(e); code != 2 {
 			t.Errorf("Run(%v) = %d, want 2", args, code)
 		}
+	}
+}
+
+func TestCurrentProcessRejectsRetiredClipboardBeforeClaim(t *testing.T) {
+	for _, retired := range []string{"--clip", "--clip=1s", "--clip=false"} {
+		t.Run(retired, func(t *testing.T) {
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				requests.Add(1)
+			}))
+			defer srv.Close()
+
+			e, _, _ := contractEnv([]string{
+				"reveal", retired, "--passphrase-file", phraseFile(t), srv.URL + "/s/" + contractID,
+			}, "")
+			if code := Run(e); code != 2 {
+				t.Fatalf("Run(reveal %s)=%d, want 2", retired, code)
+			}
+			if requests.Load() != 0 {
+				t.Fatalf("retired %s sent %d claim requests, want 0", retired, requests.Load())
+			}
+		})
 	}
 }
 
@@ -390,7 +421,7 @@ func TestPrepareDestinationCachesImplicitViewerTerminal(t *testing.T) {
 	}
 
 	a := &application{env: Env{StdoutTTY: true, OpenTTY: openTTY}}
-	_, err := a.prepareDestination("", clipFlag{})
+	_, err := a.prepareDestination("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,12 +441,12 @@ func TestPrepareDestinationCachesImplicitViewerTerminal(t *testing.T) {
 			opens.Store(0)
 			a := &application{env: Env{StdoutTTY: true, OpenTTY: openTTY}}
 			path := test.configure(a)
-			d, err := a.prepareDestination(path, clipFlag{})
+			out, err := a.prepareDestination(path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if d.out != nil {
-				defer d.out.discard()
+			if out != nil {
+				defer out.discard()
 			}
 			if opens.Load() != 0 {
 				t.Fatalf("explicit destination opened the terminal %d times", opens.Load())
@@ -439,25 +470,29 @@ func TestCurrentProcessRevealIgnoresExplicitServer(t *testing.T) {
 	}
 }
 
-func TestCurrentCompletionCommandMatchesShippedArtifacts(t *testing.T) {
-	files := map[string]string{
-		"bash":       "burnerpad.bash",
-		"zsh":        "burnerpad.zsh",
-		"fish":       "burnerpad.fish",
-		"powershell": "burnerpad.ps1",
-	}
-	for shell, name := range files {
-		t.Run(shell, func(t *testing.T) {
-			artifact, err := os.ReadFile(filepath.Join("..", "..", "completions", name))
-			if err != nil {
-				t.Fatal(err)
+func TestCurrentHelpOmitsRetiredClipboardOption(t *testing.T) {
+	for _, command := range []string{"create", "reveal", "decrypt"} {
+		t.Run(command, func(t *testing.T) {
+			e, stdout, stderr := contractEnv([]string{"help", command}, "")
+			if code := Run(e); code != 0 {
+				t.Fatalf("exit=%d stderr=%s", code, stderr)
 			}
+			if strings.Contains(stdout.String(), "--clip") {
+				t.Fatalf("help %s advertises retired --clip: %s", command, stdout)
+			}
+		})
+	}
+}
+
+func TestCurrentCompletionCommandOmitsRetiredClipboardOption(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
+		t.Run(shell, func(t *testing.T) {
 			e, stdout, stderr := contractEnv([]string{"completion", shell}, "")
 			if code := Run(e); code != 0 {
 				t.Fatalf("exit=%d stderr=%s", code, stderr)
 			}
-			if !bytes.Equal(stdout.Bytes(), artifact) {
-				t.Fatalf("completion command and %s have drifted", name)
+			if strings.Contains(stdout.String(), "--clip") {
+				t.Fatalf("%s completion advertises retired --clip: %s", shell, stdout)
 			}
 		})
 	}

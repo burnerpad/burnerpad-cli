@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -45,41 +44,10 @@ func resolveConfig(env Env, g globalFlags) config {
 	return c
 }
 
-type clipFlag struct {
-	enabled  bool
-	duration time.Duration
-}
-
-func (c *clipFlag) String() string {
-	if !c.enabled {
-		return "false"
-	}
-	return c.duration.String()
-}
-
-func (c *clipFlag) Set(value string) error {
-	if value == "true" || value == "" {
-		c.enabled, c.duration = true, 45*time.Second
-		return nil
-	}
-	if value == "false" {
-		c.enabled = false
-		return nil
-	}
-	d, err := time.ParseDuration(value)
-	if err != nil || d <= 0 || d%time.Second != 0 {
-		return fmt.Errorf("must be a positive whole-second duration")
-	}
-	c.enabled, c.duration = true, d
-	return nil
-}
-
-func (*clipFlag) IsBoolFlag() bool { return true }
-
 type createFlags struct {
 	ttl, input, passphraseFile string
 	passphraseFD               int
-	ask, clip                  bool
+	ask                        bool
 }
 
 func registerCreate(fs *flag.FlagSet) *createFlags {
@@ -89,7 +57,6 @@ func registerCreate(fs *flag.FlagSet) *createFlags {
 	fs.BoolVar(&f.ask, "ask", false, "prompt for an existing passphrase")
 	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
 	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
-	fs.BoolVar(&f.clip, "clip", false, "copy the link using OSC 52")
 	return f
 }
 
@@ -98,7 +65,6 @@ type revealFlags struct {
 	passphraseFile string
 	passphraseFD   int
 	keepBlob, out  string
-	clip           clipFlag
 }
 
 func registerReveal(fs *flag.FlagSet) *revealFlags {
@@ -108,7 +74,6 @@ func registerReveal(fs *flag.FlagSet) *revealFlags {
 	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
 	fs.StringVar(&f.keepBlob, "keep-blob", "", "save claimed ciphertext")
 	fs.StringVar(&f.out, "out", "", "plaintext output file")
-	fs.Var(&f.clip, "clip", "copy plaintext using OSC 52")
 	return f
 }
 
@@ -130,7 +95,6 @@ type decryptFlags struct {
 	passphraseFile string
 	passphraseFD   int
 	out            string
-	clip           clipFlag
 }
 
 func registerDecrypt(fs *flag.FlagSet) *decryptFlags {
@@ -140,7 +104,6 @@ func registerDecrypt(fs *flag.FlagSet) *decryptFlags {
 	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
 	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
 	fs.StringVar(&f.out, "out", "", "plaintext output file")
-	fs.Var(&f.clip, "clip", "copy plaintext using OSC 52")
 	return f
 }
 

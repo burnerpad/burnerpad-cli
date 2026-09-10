@@ -1,6 +1,9 @@
 # ADR-0028: Freeze the minimal machine interface for version one
 
-Date: 2026-09-10 · Status: Accepted, amended for mutation-aware signals · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
+Date: 2026-09-10 · Status: Accepted, amended for mutation-aware signals and by [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md) · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
+
+ADR-0035 removes clipboard delivery from the local-failure and pending-cancellation portions of this interface;
+the remaining machine contract is unchanged.
 
 ## Context
 

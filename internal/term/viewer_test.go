@@ -25,7 +25,6 @@ func script(evs ...Event) func() (Event, error) {
 }
 
 func TestViewerAltScreenGolden(t *testing.T) {
-	t.Setenv("TMUX", "")
 	var buf bytes.Buffer
 	// the §10(c) plaintext: exactly 52 bytes
 	body := []byte("db: postgres://svc_deploy:wR8-kk2@10.0.4.7:5432/prod")

@@ -2,7 +2,7 @@
 // state machine (ARCHITECTURE.md §7.2 as amended by A9–A12), the pure
 // width-aware renderer (§7.2 "Narrow terminals & resize", A10), the plain
 // accessibility mode (§7.6, B24), the raw-mode TTY plumbing (§21), the
-// alternate-screen viewer (§8.1), and OSC 52 (§8.1, A7).
+// alternate-screen viewer (§8.1).
 package term
 
 import (

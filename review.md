@@ -25,7 +25,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 2. Render decrypted plaintext safely in interactive terminals.
 - [x] 3. Preflight the implicit viewer before destructive reveal.
 - [x] 4. Make signals mutation-aware and run required cleanup.
-- [ ] 5. Resolve the unverifiable OSC 52 delivery contract.
+- [x] 5. Resolve the unverifiable OSC 52 delivery contract.
 - [x] 6. Correct post-mutation HTTP outcome classification.
 - [ ] 7. Enforce the advertised conformance-vector pin.
 - [x] 8. Repair deterministic release reproduction.
@@ -95,9 +95,9 @@ terminal modes now share a streaming safe renderer. Graphic UTF-8 and logical
 line breaks remain readable; C0/C1 controls, DEL, Unicode format characters,
 and malformed bytes become inert Go-style escapes. The renderer never creates
 a second full plaintext buffer, and the header retains the original byte
-count. Piped stdout and files retain the original authenticated bytes, decoded
-JSON round-trips them, and OSC 52 requests encode them without claiming terminal
-delivery. Regression tests cover OSC 52, OSC 8, alternate-screen
+count. Piped stdout and files retain the original authenticated bytes, and decoded
+JSON round-trips them. The OSC 52 destination was subsequently retired in Finding 5.
+Regression tests cover OSC 52 and OSC 8 attacker strings, alternate-screen
 exit injection, control/format characters, CR/LF normalization, graphic
 Unicode, and malformed UTF-8 in both viewer modes.
 
@@ -111,7 +111,7 @@ Remediation applied 2026-09-10: destination preparation now opens and caches
 the controlling terminal whenever implicit TTY viewing is selected. Delivery
 reuses that exact prepared terminal from the application cache, so a missing
 controlling terminal fails locally before the reveal POST in both
-alternate and plain modes. Explicit files, JSON, clipboard, and piped stdout
+alternate and plain modes. Explicit files, JSON, and piped stdout
 keep their existing destination-specific preflight behavior. Regression tests
 prove terminal-open failure sends zero claim requests and that JSON, file, and
 piped-stdout destinations do not acquire a viewer terminal.
@@ -142,18 +142,33 @@ Remediation applied 2026-09-11:
   and production signal notification stops after the first signal so a second regains immediate OS behavior.
 - Terminal input now uses cancellation-aware, TTY-owned reads. Password/raw/alternate-screen/bracketed-paste
   state is synchronously restored; viewer Ctrl+C is an interruption; non-EOF viewer errors remain local errors.
-- Clipboard cancellation attempts its clear exactly once before return. Confirmed one-time plaintext that
-  becomes ready after cancellation is not flashed and erased: terminal handoff becomes persistent plain output,
-  while an explicitly selected clipboard handoff completes its configured dwell.
+- Confirmed one-time plaintext that becomes ready after cancellation is not flashed and erased: terminal
+  handoff becomes persistent plain output. The clipboard cleanup path implemented with this lifecycle change
+  was subsequently removed along with the unverifiable destination in Finding 5.
 - Regression coverage exercises pre-dispatch SIGINT/SIGTERM, create/claim/revoke post-send ambiguity, confirmed
-  and failed handoffs, active pipe cancellation, both clipboard signals, retry-error preservation, real Linux
-  PTY restoration, Windows compilation, and deterministic signal/result precedence.
+  and failed handoffs, active pipe cancellation, retry-error preservation, real Linux PTY restoration, Windows
+  compilation, and deterministic signal/result precedence.
 
 ### 5. High — OSC 52 success is reported despite delivery being unverifiable
 
 The implementation admits that terminal clipboard success cannot be verified (`internal/term/osc52.go:11-17`). Nevertheless, reveal says plaintext was copied and returns zero, whose documented meaning is “artifact reached its destination” (`README.md:158-168`).
 
 Unsupported or size-limited terminals may silently discard or truncate the sequence after the one-shot secret has been consumed. For destructive reveal, require recovery preservation or weaken the success contract and message honestly.
+
+Remediation applied 2026-09-11:
+
+- Removed `--clip` from create, reveal, and decrypt and deleted the OSC 52, tmux-passthrough, countdown,
+  and clearing implementation. No native clipboard helper replaced it.
+- The built-in destinations are now the safe terminal viewer, exact non-terminal stdout, exclusive owner-only
+  files, and JSON. External clipboard pipelines are caller-owned; destructive reveal recommends `--keep-blob`
+  when an external handoff may need recovery.
+- Retired flag forms fail with exit 2 during parsing, before a create or claim request. Regression tests cover
+  the destructive reveal boundary and prove help and all four runtime completion scripts omit the option.
+- Removed the four duplicate checked-in completion artifacts; the runtime `completion` command is now their
+  single source. ADR-0035 records the pre-version-one contract reversal and its amendments to ADR-0028 and
+  ADR-0033. No GitHub repository setting is required for this change.
+- Verified with the full Go test and vet suites, Staticcheck, the race suite, six cross-builds, the binary-size
+  gate, diff checks, and independent standards/spec reviews.
 
 ### 6. High — mutation status classification reports false certainty
 

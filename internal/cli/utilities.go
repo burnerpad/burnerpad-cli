@@ -87,13 +87,13 @@ or "burnerpad help decrypt" for command options.
 	if len(positionals) == 1 {
 		switch positionals[0] {
 		case "create":
-			text = "Usage: burnerpad create [--server ORIGIN] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ttl DURATION] [--input FILE] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--clip]\n"
+			text = "Usage: burnerpad create [--server ORIGIN] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ttl DURATION] [--input FILE] [--ask|--passphrase-file FILE|--passphrase-fd FD]\n"
 		case "reveal":
-			text = "Usage: burnerpad reveal [--server IGNORED] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--keep-blob FILE] [--out FILE|--clip[=DURATION]] FULL_SHARE_URL\n"
+			text = "Usage: burnerpad reveal [--server IGNORED] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--keep-blob FILE] [--out FILE] FULL_SHARE_URL\n"
 		case "burn":
 			text = "Usage: burnerpad burn [--server ORIGIN] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--token-file FILE|--token-fd FD] [FULL_SHARE_URL|ID]\nA piped create receipt supplies the link, server, and management token.\n"
 		case "decrypt":
-			text = "Usage: burnerpad decrypt [--json] [--quiet] [--plain] [--no-color] --blob-file FILE|- [--ask|--passphrase-file FILE|--passphrase-fd FD] [--out FILE|--clip[=DURATION]]\n"
+			text = "Usage: burnerpad decrypt [--json] [--quiet] [--plain] [--no-color] --blob-file FILE|- [--ask|--passphrase-file FILE|--passphrase-fd FD] [--out FILE]\n"
 		default:
 			return usage("invalid_input", "unknown help topic")
 		}
@@ -111,10 +111,10 @@ var completionScripts = map[string]string{
   local globals="--server --timeout --json --quiet --plain --no-color"
   if (( COMP_CWORD == 1 )); then COMPREPLY=( $(compgen -W "$commands $globals" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
-    create) local flags="--server --timeout --json --quiet --plain --no-color --ttl --input --ask --passphrase-file --passphrase-fd --clip" ;;
-    reveal) local flags="--server --timeout --json --quiet --plain --no-color --ask --passphrase-file --passphrase-fd --keep-blob --out --clip" ;;
+    create) local flags="--server --timeout --json --quiet --plain --no-color --ttl --input --ask --passphrase-file --passphrase-fd" ;;
+    reveal) local flags="--server --timeout --json --quiet --plain --no-color --ask --passphrase-file --passphrase-fd --keep-blob --out" ;;
     burn) local flags="--server --timeout --json --quiet --plain --no-color --token-file --token-fd" ;;
-    decrypt) local flags="--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out --clip" ;;
+    decrypt) local flags="--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out" ;;
     *) local flags="" ;;
   esac
   COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
@@ -141,10 +141,10 @@ _burnerpad() {
     return
   fi
   case $words[2] in
-    create) flags=($globals --ttl --input --ask --passphrase-file --passphrase-fd --clip) ;;
-    reveal) flags=($globals --ask --passphrase-file --passphrase-fd --keep-blob --out --clip) ;;
+    create) flags=($globals --ttl --input --ask --passphrase-file --passphrase-fd) ;;
+    reveal) flags=($globals --ask --passphrase-file --passphrase-fd --keep-blob --out) ;;
     burn) flags=($globals --token-file --token-fd) ;;
-    decrypt) flags=(--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out --clip) ;;
+    decrypt) flags=(--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out) ;;
     *) flags=() ;;
   esac
   _describe 'option' flags
@@ -166,7 +166,6 @@ complete -c burnerpad -n '__fish_seen_subcommand_from reveal decrypt' -l out -rF
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l passphrase-file -rF
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l passphrase-fd -r
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l ask
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l clip
 complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-file -rF
 complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-fd -r
 `,
@@ -176,10 +175,10 @@ complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-fd -r
   $globals = @('--server','--timeout','--json','--quiet','--plain','--no-color')
   $command = $commandAst.CommandElements | ForEach-Object { $_.Value } | Where-Object { $_ -in $commands } | Select-Object -First 1
   $options = switch ($command) {
-    'create'  { $globals + @('--ttl','--input','--ask','--passphrase-file','--passphrase-fd','--clip') }
-    'reveal'  { $globals + @('--ask','--passphrase-file','--passphrase-fd','--keep-blob','--out','--clip') }
+    'create'  { $globals + @('--ttl','--input','--ask','--passphrase-file','--passphrase-fd') }
+    'reveal'  { $globals + @('--ask','--passphrase-file','--passphrase-fd','--keep-blob','--out') }
     'burn'    { $globals + @('--token-file','--token-fd') }
-    'decrypt' { @('--timeout','--json','--quiet','--plain','--no-color','--blob-file','--ask','--passphrase-file','--passphrase-fd','--out','--clip') }
+    'decrypt' { @('--timeout','--json','--quiet','--plain','--no-color','--blob-file','--ask','--passphrase-file','--passphrase-fd','--out') }
     default   { if ($null -eq $command) { $commands + $globals } else { @() } }
   }
   $options |
