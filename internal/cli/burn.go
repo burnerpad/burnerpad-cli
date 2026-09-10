@@ -155,6 +155,9 @@ func (a *application) readToken(flags *burnFlags) (string, error) {
 			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
 				return "", interrupted(err)
 			}
+			if errors.Is(err, term.ErrInputTooLong) {
+				return "", usage("invalid_credential_source", "the management token exceeds the supported size limit")
+			}
 			return "", local("cannot read the management token from the terminal")
 		}
 	}

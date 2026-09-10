@@ -346,6 +346,8 @@ func (m *Machine) Handle(e Event) Output {
 		bell, status = m.onCtrlO()
 	case KindPaste:
 		bell, status = m.onPaste(e.Paste)
+	case KindInputTooLong:
+		bell, status = true, "paste rejected: input is too long"
 	}
 	out := Output{
 		Committed: m.Committed(),

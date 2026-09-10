@@ -9,6 +9,7 @@ const (
 	interactiveWordsInvalid
 	interactiveWordsDuplicate
 	interactiveWordsTooMany
+	interactiveWordsTooLong
 )
 
 // parseInteractiveWords is the one grammar used by raw paste and plain-line
@@ -16,6 +17,9 @@ const (
 // returns strings only after a token has resolved to a public list word.
 // Validation is atomic against already committed words.
 func parseInteractiveWords(input []byte, committed []string) ([]string, interactiveWordsIssue) {
+	if len(input) > wordlist.MaxPhraseBytes {
+		return nil, interactiveWordsTooLong
+	}
 	seen := make(map[string]struct{}, len(committed))
 	for _, word := range committed {
 		seen[word] = struct{}{}
@@ -82,6 +86,8 @@ func interactiveWordsMessage(issue interactiveWordsIssue) string {
 		return "a word is repeated"
 	case interactiveWordsTooMany:
 		return "passphrases contain at most 64 words"
+	case interactiveWordsTooLong:
+		return "input is too long"
 	default:
 		return "a word is not on the Burnerpad word list"
 	}

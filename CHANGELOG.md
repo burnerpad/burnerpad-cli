@@ -44,3 +44,5 @@ derived from the immutable release tag and never hardcoded in source.
   cannot be verified, keeping exit zero's destination-delivery contract unqualified.
 - Enforce the raw upstream conformance-vector hash, execute every supported and generic encoding vector, and
   make byte-for-byte specification drift a pull-request and release dependency.
+- Bound bracketed paste and interactive lines at their allocation boundary, wiping and draining oversized
+  input before a later prompt can consume it.

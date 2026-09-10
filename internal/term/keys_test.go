@@ -1,6 +1,7 @@
 package term
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -163,6 +164,48 @@ func TestDecoderBracketedPaste(t *testing.T) {
 		feedAll(d, []byte("\x1b[200~partial"))
 		if d.pending() {
 			t.Fatal("pending() must be false inside a bracketed paste")
+		}
+	})
+}
+
+func TestDecoderBoundsBracketedPasteAndRecovers(t *testing.T) {
+	t.Run("exact limit", func(t *testing.T) {
+		payload := bytes.Repeat([]byte{'a'}, maxPasteBytes)
+		wire := append([]byte("\x1b[200~"), payload...)
+		wire = append(wire, []byte(pasteEnd)...)
+		got := feedAll(newKeyDecoder(), wire)
+		if len(got) != 1 || got[0].Kind != KindPaste || !bytes.Equal(got[0].Paste, payload) {
+			t.Fatalf("exact-limit events = %+v", got)
+		}
+	})
+
+	t.Run("limit plus one", func(t *testing.T) {
+		d := newKeyDecoder()
+		if got := feedAll(d, []byte("\x1b[200~")); len(got) != 0 {
+			t.Fatalf("paste start events = %+v", got)
+		}
+		if got := feedAll(d, bytes.Repeat([]byte{'s'}, maxPasteBytes)); len(got) != 0 {
+			t.Fatalf("payload events = %+v", got)
+		}
+		if len(d.paste) != maxPasteBytes || cap(d.paste) != maxPasteBytes {
+			t.Fatalf("retained paste len/cap = %d/%d, want %d/%d", len(d.paste), cap(d.paste), maxPasteBytes, maxPasteBytes)
+		}
+		held := d.paste
+		if got := d.feed('x'); len(got) != 0 {
+			t.Fatalf("overflow emitted before terminator: %+v", got)
+		}
+		if !d.pover || len(d.paste) != 0 {
+			t.Fatalf("overflow state: pover=%v retained=%d", d.pover, len(d.paste))
+		}
+		if !bytes.Equal(held, make([]byte, len(held))) {
+			t.Fatal("retained paste bytes were not wiped on overflow")
+		}
+		got := feedAll(d, append([]byte("ignored after overflow"), []byte(pasteEnd)...))
+		if !reflect.DeepEqual(got, []Event{kd(KindInputTooLong)}) {
+			t.Fatalf("overflow completion = %+v", got)
+		}
+		if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []Event{rn('q')}) {
+			t.Fatalf("decoder unusable after overflow: %+v", got)
 		}
 	})
 }

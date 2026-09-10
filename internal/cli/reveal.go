@@ -48,6 +48,9 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
 				return interrupted(err)
 			}
+			if errors.Is(err, term.ErrInputTooLong) {
+				return usage("invalid_input", "the share URL exceeds the supported size limit")
+			}
 			return local("cannot read the share URL from the terminal")
 		}
 		rawURL = line

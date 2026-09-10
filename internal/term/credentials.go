@@ -9,6 +9,11 @@ import (
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
 )
 
+const (
+	maxShareURLLineBytes = 4096
+	maxTokenLineBytes    = 256
+)
+
 // ReadLine reads one cooked line from the controlling terminal.
 func ReadLine(t *TTY, prompt string) (string, error) {
 	return ReadLineContext(context.Background(), t, prompt)
@@ -23,7 +28,7 @@ func ReadLineContext(ctx context.Context, t *TTY, prompt string) (string, error)
 	if _, err := fmt.Fprint(t.out, prompt); err != nil {
 		return "", err
 	}
-	line, err := t.readLineContext(ctx)
+	line, err := t.readLineContext(ctx, maxShareURLLineBytes)
 	if err != nil {
 		return "", err
 	}
@@ -55,7 +60,7 @@ func ReadPasswordContext(ctx context.Context, t *TTY, prompt string) ([]byte, er
 	if _, err := fmt.Fprint(t.out, prompt); err != nil {
 		return nil, err
 	}
-	value, readErr := t.readLineContext(ctx)
+	value, readErr := t.readLineContext(ctx, maxTokenLineBytes)
 	restore()
 	restored = true
 	if _, err := fmt.Fprintln(t.out); err != nil {
@@ -72,13 +77,24 @@ func ReadPasswordContext(ctx context.Context, t *TTY, prompt string) ([]byte, er
 // readLineContext reconstructs a line from the sole TTY input pump. In
 // cooked mode the OS normally performs editing before these events arrive;
 // the editing cases also make the same helper suitable for no-echo raw input.
-func (t *TTY) readLineContext(ctx context.Context) ([]byte, error) {
+func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 	var line []byte
+	overflow := false
+	reject := func() {
+		secret.Wipe(line)
+		line = nil
+		overflow = true
+	}
 	for {
 		ev, err := t.ReadEventContext(ctx)
 		if err != nil {
-			if err == io.EOF && len(line) > 0 {
-				return line, nil
+			if err == io.EOF {
+				if overflow {
+					return nil, ErrInputTooLong
+				}
+				if len(line) > 0 {
+					return line, nil
+				}
 			}
 			secret.Wipe(line)
 			if ctx.Err() != nil {
@@ -88,26 +104,64 @@ func (t *TTY) readLineContext(ctx context.Context) ([]byte, error) {
 		}
 		switch ev.Kind {
 		case KindRune:
-			line = utf8.AppendRune(line, ev.R)
+			if !overflow {
+				size := utf8.RuneLen(ev.R)
+				if size < 0 || size > limit-len(line) {
+					reject()
+				} else {
+					line = utf8.AppendRune(line, ev.R)
+				}
+			}
 		case KindSpace:
-			line = append(line, ' ')
+			if !overflow {
+				if len(line) == limit {
+					reject()
+				} else {
+					line = append(line, ' ')
+				}
+			}
 		case KindTab:
-			line = append(line, '\t')
+			if !overflow {
+				if len(line) == limit {
+					reject()
+				} else {
+					line = append(line, '\t')
+				}
+			}
 		case KindEnter:
+			if overflow {
+				return nil, ErrInputTooLong
+			}
 			return line, nil
 		case KindBackspace:
-			line = trimLastRune(line)
+			if !overflow {
+				line = trimLastRune(line)
+			}
 		case KindCtrlU:
-			secret.Wipe(line)
-			line = line[:0]
+			if !overflow {
+				secret.Wipe(line)
+				line = line[:0]
+			}
 		case KindCtrlW:
-			line = trimLastWord(line)
+			if !overflow {
+				line = trimLastWord(line)
+			}
 		case KindCtrlC, KindCtrlD:
 			secret.Wipe(line)
 			return nil, ErrInterrupted
 		case KindPaste:
-			line = append(line, ev.Paste...)
+			if !overflow {
+				if len(ev.Paste) > limit-len(line) {
+					reject()
+				} else {
+					line = append(line, ev.Paste...)
+				}
+			}
 			secret.Wipe(ev.Paste)
+		case KindInputTooLong:
+			if !overflow {
+				reject()
+			}
 		case KindCtrlO, KindIgnored:
 			// These gestures have no line-input meaning.
 		}
