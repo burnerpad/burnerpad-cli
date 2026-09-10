@@ -72,6 +72,11 @@ warning; an irrelevant environment value is silently ignored.
 | Claim | `POST /api/secrets/:id/reveal`, `{}` | `200 {blob}` | generic `404`, `429`, `503` |
 | Revoke | `POST /api/secrets/:id/burn`, `{mgmt_token}` | `200 {status:"burned"}` | generic `404`, `429`, `503` |
 
+Only a status listed for that operation is a definitive failure. Once a request may have been transmitted,
+every other final status—including another `2xx`, a refused redirect, an operation-inapplicable `4xx`, or an
+unexpected `5xx`—is operation-specific outcome unknown. A `200` with an incomplete or invalid success body
+is outcome unknown as well.
+
 All request bodies are JSON and blobs use canonical unpadded base64url. Response bodies are capped at
 200,000 bytes. Parsers require the fields needed by the operation, validate IDs/tokens/blob encoding and
 types, reject trailing JSON values, and tolerate additive object fields.

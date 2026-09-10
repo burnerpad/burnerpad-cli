@@ -292,9 +292,9 @@ Primary files: `internal/id/id.go`, `internal/id/parse.go`, and their unit/fuzz 
   remotely, and HTTP only for loopback. Default to one 12-second total deadline.
 - Track whether the request may have reached the transport. Classify definite pre-send inability as temporary
   unavailability and every incomplete/invalid post-send mutation result as the corresponding outcome unknown.
-  A complete documented error response is classified by its status instead. Reserve exit 8 for a complete
-  response that establishes its outcome but violates the expected representation, or for a fully received
-  secret using an unsupported envelope.
+  A documented error status is definitive only for the operation that lists it; every other final status is
+  outcome unknown after transmission. Reserve exit 8 for a complete response that establishes its outcome
+  but violates the expected representation, or for a fully received secret using an unsupported envelope.
 
 Primary files: `internal/api/api.go`, `internal/api/client.go`, `internal/api/errors.go`,
 `internal/api/windows.go`, and tests. Delete `internal/api/retry.go` and obsolete exactly-once tests.
