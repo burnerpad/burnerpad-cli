@@ -26,6 +26,6 @@ impersonation surface precisely when the project gets notable.
 
 ## Consequences
 
-- Shipped completions mitigate the long name; `alias bp=burnerpad` remains a user-owned shell choice rather
-  than a second CLI command surface.
+- The runtime `completion` command mitigates the long name; `alias bp=burnerpad` remains a user-owned shell
+  choice rather than a second CLI command surface.
 - Releases never gate on community downstreams (aports/ports/Debian).

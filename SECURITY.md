@@ -11,17 +11,19 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - Share URLs contain no key. The passphrase travels out of band and never enters a request.
 - Create, claim, and revoke each send at most one operation request per invocation.
 - The first termination signal cancels and joins an in-flight command. A transmitted mutation left
-  unconfirmed is reported as outcome unknown, and required terminal/clipboard cleanup is attempted before
-  the process returns.
+  unconfirmed is reported as outcome unknown, and required terminal cleanup is attempted before the process
+  returns.
 - Confirmed one-time plaintext that becomes ready after cancellation is not flashed and erased: terminal
-  delivery falls back to persistent plain rendering, while clipboard delivery completes its configured dwell.
-- A claim validates its URL, phrase, output file, recovery file, and clipboard destination first.
+  delivery falls back to persistent plain rendering.
+- A claim validates its URL, phrase, output file, recovery file, and terminal destination first.
 - A wrong phrase is retried locally against held ciphertext and cannot issue another claim.
 - Remote servers require verified HTTPS, loopback alone may use HTTP, and redirects are refused.
 - Passphrases, tokens, and plaintext have no argv/environment interface.
 - Both interactive viewer modes treat plaintext as untrusted display data and visibly escape terminal
   controls and Unicode format characters. Pipe and file destinations retain the authenticated bytes, and
-  decoded JSON round-trips them; OSC 52 encodes the original bytes but cannot prove terminal delivery.
+  decoded JSON round-trips them.
+- There is no built-in clipboard integration: unverifiable terminal clipboard protocols and PATH-resolved
+  helper programs are outside the trusted destination boundary.
 - There is no config file, persistent state, telemetry, crash reporter, update check, or compatibility probe.
 - Machine and human errors exclude URLs, IDs, phrases, tokens, blobs, plaintext, response bodies, and paths.
 
@@ -37,19 +39,20 @@ unknown. That is deliberately not converted into a retry or a comforting guess.
 
 Endpoint malware, keyloggers, compromised terminals, and a compromised live web client defeat end-to-end
 protection. A caller-supplied phrase is only as strong as the caller's selection. Shell history records a
-share URL supplied in argv, so the CLI warns and supports prompt/pipe URL input. Clipboard managers may keep
-history after OSC 52 clearing. Plain terminal mode can place the safe, escaped rendition in scrollback;
-the alternate screen only reduces primary-scrollback exposure. A compromised terminal, or a caller that
-replays byte-exact pipe, file, decoded-JSON, or clipboard output to a terminal, remains out of scope.
+share URL supplied in argv, so the CLI warns and supports prompt/pipe URL input. Plain terminal mode can place
+the safe, escaped rendition in scrollback; the alternate screen only reduces primary-scrollback exposure. A
+compromised terminal, or a caller that replays byte-exact pipe, file, or decoded-JSON output to a terminal,
+remains out of scope. Callers that pipe plaintext into an external clipboard tool own its integrity and
+retention behavior.
 Intrinsically blocked operating-system I/O may delay graceful termination; a second signal restores immediate
-OS termination and can bypass best-effort terminal, file, or clipboard cleanup. SIGKILL cannot run cleanup.
+OS termination and can bypass best-effort terminal or file cleanup. SIGKILL cannot run cleanup.
 
 ### Go memory hygiene
 
 Secrets use byte slices and are wiped after their last controlled use; core-dump/debugger hardening and page
 locking are best effort. Go's collector, stack movement, cryptographic key schedules, terminal drivers,
-kernel pipes, swap, and third-party clipboard storage can retain copies the process cannot erase. These
-measures narrow exposure; they do not make a garbage-collected process leak-proof.
+kernel pipes, swap, and third-party destinations can retain copies the process cannot erase. These measures
+narrow exposure; they do not make a garbage-collected process leak-proof.
 
 ## Release verification
 

@@ -18,8 +18,8 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 	if countSources(flags.ask, flags.passphraseFile != "", flags.passphraseFD != -1) > 1 {
 		return usage("invalid_credential_source", "select exactly one passphrase source")
 	}
-	if countSources(a.cfg.json, flags.out != "", flags.clip.enabled) > 1 {
-		return usage("invalid_option", "--json, --out, and --clip are mutually exclusive")
+	if a.cfg.json && flags.out != "" {
+		return usage("invalid_option", "--json and --out are mutually exclusive")
 	}
 	if a.cfg.serverFlag {
 		return usage("invalid_option", "--server does not apply to offline decrypt")
@@ -27,12 +27,12 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 	if a.cfg.timeoutFlag {
 		return usage("invalid_option", "--timeout does not apply to offline decrypt")
 	}
-	destination, err := a.prepareDestination(flags.out, flags.clip)
+	out, err := a.prepareDestination(flags.out)
 	if err != nil {
 		return err
 	}
-	if destination.out != nil {
-		defer destination.discardUnlessWritten()
+	if out != nil {
+		defer out.discardUnlessWritten()
 	}
 	phrase, err := a.readPassphrase(flags.ask, flags.passphraseFile, flags.passphraseFD)
 	if err != nil {
@@ -76,5 +76,5 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 	if !utf8.Valid(plaintext) {
 		return commandError{exit: 5, code: "plaintext_invalid", message: "the authenticated plaintext is not valid UTF-8 text"}
 	}
-	return a.deliverPlaintext(destination, "decrypted", "", plaintext)
+	return a.deliverPlaintext(out, "decrypted", "", plaintext)
 }

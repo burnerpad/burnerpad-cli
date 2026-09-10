@@ -40,6 +40,8 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0031](0031-explicit-commands-and-protected-inputs.md) | Keep destructive commands explicit and credentials out of ambient inputs | Version-one command surface |
 | [0032](0032-one-canonical-passphrase-language.md) | Use one canonical passphrase language across official clients | Version-one phrase boundary |
 | [0033](0033-explicit-plaintext-destinations.md) | Make plaintext destinations explicit and non-overwriting | Version-one output policy |
+| [0034](0034-trusted-default-branch-immutable-releases.md) | Release only from the trusted default branch into an immutable draft | Release authorization boundary |
+| [0035](0035-retire-unverifiable-clipboard-delivery.md) | Retire unverifiable clipboard delivery before version one | Destination-success boundary |
 
 New ADRs: next number, same template (Date/Status/Source, Context, Decision, Consequences,
 Alternatives where meaningful). Superseding an ADR: new record, link both ways, flip the old

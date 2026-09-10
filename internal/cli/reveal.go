@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"time"
 	"unicode/utf8"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
@@ -25,8 +23,8 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 	if countSources(flags.ask, flags.passphraseFile != "", flags.passphraseFD != -1) > 1 {
 		return usage("invalid_credential_source", "select exactly one passphrase source")
 	}
-	if countSources(a.cfg.json, flags.out != "", flags.clip.enabled) > 1 {
-		return usage("invalid_option", "--json, --out, and --clip are mutually exclusive")
+	if a.cfg.json && flags.out != "" {
+		return usage("invalid_option", "--json and --out are mutually exclusive")
 	}
 	var rawURL string
 	if len(positionals) == 1 {
@@ -73,12 +71,12 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 	}
 	defer func() { secret.Wipe(phrase) }()
 
-	destination, err := a.prepareDestination(flags.out, flags.clip)
+	out, err := a.prepareDestination(flags.out)
 	if err != nil {
 		return attachServer(err, server)
 	}
-	if destination.out != nil {
-		defer destination.discardUnlessWritten()
+	if out != nil {
+		defer out.discardUnlessWritten()
 	}
 	var recovery *reservedFile
 	if flags.keepBlob != "" {
@@ -131,7 +129,7 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 		}
 		return commandError{exit: 5, code: "plaintext_invalid", message: "the authenticated plaintext is not valid UTF-8 text", server: server}
 	}
-	if err := a.deliverPlaintext(destination, "revealed", server, plaintext); err != nil {
+	if err := a.deliverPlaintext(out, "revealed", server, plaintext); err != nil {
 		if recovery == nil {
 			a.warn("the claimed ciphertext is being discarded")
 		}
@@ -140,56 +138,30 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 	return nil
 }
 
-type destination struct {
-	out        *reservedFile
-	clip       clipFlag
-	clipWriter io.Writer
-}
-
-func (a *application) prepareDestination(path string, clip clipFlag) (*destination, error) {
-	d := &destination{clip: clip}
-	var err error
+func (a *application) prepareDestination(path string) (*reservedFile, error) {
+	var out *reservedFile
 	if path != "" {
-		d.out, err = reserve(path)
+		var err error
+		out, err = reserve(path)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if clip.enabled {
-		d.clipWriter, err = a.clipboardWriter()
-		if err != nil {
-			if d.out != nil {
-				d.out.discard()
-			}
+	if !a.cfg.json && out == nil && a.env.StdoutTTY {
+		if _, err := a.terminal(); err != nil {
 			return nil, err
 		}
 	}
-	if !a.cfg.json && d.out == nil && !d.clip.enabled && a.env.StdoutTTY {
-		if _, err = a.terminal(); err != nil {
-			return nil, err
-		}
-	}
-	return d, nil
+	return out, nil
 }
 
-func (a *application) clipboardWriter() (io.Writer, error) {
-	if a.env.StderrTTY {
-		return a.env.Stderr, nil
-	}
-	t, err := a.terminal()
-	if err != nil {
-		return nil, local("OSC 52 clipboard delivery needs a controlling terminal")
-	}
-	return t.Out(), nil
-}
-
-func (a *application) deliverPlaintext(d *destination, status, server string, plaintext []byte) error {
+func (a *application) deliverPlaintext(out *reservedFile, status, server string, plaintext []byte) error {
 	// Once plaintext is ready—especially after a one-time claim—a signal that
 	// arrived during local decryption must not erase the destination as soon as
-	// it is entered. Complete that already-pending handoff: clipboard delivery
-	// gets its configured dwell, while the viewer uses persistent plain output
-	// instead of waiting on the alternate screen. When delivery begins before
-	// cancellation, the Run context still cancels its interactive wait.
+	// it is entered. Complete that already-pending handoff; the viewer uses
+	// persistent plain output instead of waiting on the alternate screen. When
+	// delivery begins before cancellation, the Run context still cancels its
+	// interactive wait.
 	deliveryCtx := a.context()
 	pendingCancellation := deliveryCtx.Err() != nil
 	if pendingCancellation {
@@ -206,35 +178,11 @@ func (a *application) deliverPlaintext(d *destination, status, server string, pl
 				return local("cannot write JSON output")
 			}
 		}
-	case d.out != nil:
-		if err := d.out.write(plaintext); err != nil {
+	case out != nil:
+		if err := out.write(plaintext); err != nil {
 			return err
 		}
-		d.out.written = true
-	case d.clip.enabled:
-		if err := term.OSC52Copy(d.clipWriter, plaintext); err != nil {
-			return local("cannot write the OSC 52 clipboard sequence")
-		}
-		fmt.Fprintf(a.env.Stderr, "burnerpad: plaintext copied via OSC 52; best-effort clear in %s (clipboard managers may retain history)\n", d.clip.duration)
-		timer := time.NewTimer(d.clip.duration)
-		var canceled error
-		select {
-		case <-timer.C:
-		case <-deliveryCtx.Done():
-			canceled = deliveryCtx.Err()
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-		}
-		if err := term.OSC52Clear(d.clipWriter); err != nil {
-			a.warn("the best-effort clipboard clear sequence could not be written")
-		}
-		if canceled != nil {
-			return interrupted(canceled)
-		}
+		out.written = true
 	case a.env.StdoutTTY:
 		t, err := a.terminal()
 		if err != nil {
@@ -254,12 +202,6 @@ func (a *application) deliverPlaintext(d *destination, status, server string, pl
 		}
 	}
 	return nil
-}
-
-func (d *destination) discardUnlessWritten() {
-	if d != nil && d.out != nil && !d.out.written {
-		d.out.discard()
-	}
 }
 
 func (r *reservedFile) discardUnlessWritten() {

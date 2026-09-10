@@ -5,7 +5,7 @@ release run necessarily remain post-merge acceptance steps.
 
 This plan replaces the unreleased pre-1.0 client behavior with the current burnerpad-lite product contract.
 It is the implementation checklist for the first public CLI release, `v1.0.0`. The accepted decisions are
-recorded in ADR-0021 through ADR-0033. Superseded ADRs and the explicitly historical glossary remain only as
+recorded in ADR-0021 through ADR-0035. Superseded ADRs and the explicitly historical glossary remain only as
 decision history.
 
 There are no remaining product decisions in this plan. Discoveries that contradict the current
@@ -98,7 +98,6 @@ Accepted options:
 - `--ask`
 - `--passphrase-file FILE`
 - `--passphrase-fd FD`
-- `--clip`
 
 The plaintext source is exactly one of the interactive composer, piped stdin, or `--input FILE`. Plaintext
 never comes from argv or an environment variable. Supplying `--input` while stdin is already a pipe is an
@@ -118,7 +117,7 @@ ceiling. Display the returned effective `ttl`, and explicitly note when it diffe
 Interactive mode presents the share link and phrase as separate handoff artifacts and shows the management
 token. A piped create using a generated phrase requires `--json`; otherwise the CLI would have no safe,
 complete machine handoff. A piped create using a caller-supplied phrase may print only the link on stdout,
-with the server and management token on stderr. `--clip` copies only the link.
+with the server and management token on stderr.
 
 ### `reveal`
 
@@ -129,7 +128,6 @@ Accepted options:
 - `--passphrase-fd FD`
 - `--keep-blob FILE`
 - `--out FILE`
-- `--clip[=DURATION]`
 
 Reveal accepts one full `http://` or `https://` `/s/<id>` share URL from argv, piped stdin, or a protected
 terminal prompt. It does not accept a bare ID or path-only target. A URL in argv is accepted with a warning
@@ -176,7 +174,6 @@ Accepted options:
 - `--passphrase-file FILE`
 - `--passphrase-fd FD`
 - `--out FILE`
-- `--clip[=DURATION]`
 
 Decrypt is structurally local-only and never constructs a network client. Its blob input is canonical
 unpadded base64url text with one optional terminal newline; raw envelope bytes and JSON wrappers are rejected.
@@ -207,14 +204,12 @@ overwrites an existing path. `--force` is removed. Destination setup happens bef
 reserved output file is no longer needed because claim failed, remove only the file created by that
 invocation.
 
-Reveal and decrypt select exactly one plaintext destination. `--json`, `--out`, and `--clip` are mutually
-exclusive; with none supplied, terminal stdout selects the safe viewer and non-terminal stdout receives exact
-plaintext. JSON is byte-exact after decoding its `plaintext` string. The OSC 52 request encodes the original
-bytes without the viewer transformation, but cannot prove terminal acceptance or completeness.
-
-Clipboard uses OSC 52 only. Create copies the link. Reveal and decrypt copy plaintext instead of displaying
-it, default to a 45-second clear delay, remain alive for the countdown, and state that clearing is best-effort
-and clipboard managers may retain history. Detectable clipboard failures occur before claim.
+Reveal and decrypt select exactly one explicit plaintext destination: `--json` or `--out`. With neither,
+terminal stdout selects the safe viewer and non-terminal stdout receives exact plaintext. JSON is byte-exact
+after decoding its `plaintext` string. There is no built-in clipboard destination because a terminal clipboard
+request cannot prove acceptance or completeness, while helper executables add a PATH and platform trust
+boundary. Callers may pipe exact stdout to a tool they select; destructive reveal should use `--keep-blob`
+when that external handoff may need recovery.
 
 Successful JSON lines are exactly:
 
@@ -247,14 +242,14 @@ error. Use a closed code vocabulary grouped under the frozen exit meanings:
 | `9` | `create_outcome_unknown`, `claim_outcome_unknown`, `revoke_outcome_unknown` |
 | `10` | `internal` |
 
-The first SIGINT or SIGTERM cancels a Run-owned context and joins dispatch so terminal, recovery, output, and
-clipboard cleanup attempts can finish. If cancellation leaves an already-transmitted mutation unconfirmed,
+The first SIGINT or SIGTERM cancels a Run-owned context and joins dispatch so terminal, recovery, and output
+cleanup attempts can finish. If cancellation leaves an already-transmitted mutation unconfirmed,
 its operation-specific outcome-unknown error and exit `9` take precedence. Definitive command/local failures
 found while joining also remain authoritative; a confirmed success completes its required handoff and then
 returns `130`/`143`. Signal exits do not manufacture an ordinary JSON error. A second production signal
 restores immediate OS termination. Confirmed one-time plaintext that becomes ready after cancellation uses
-persistent plain terminal output, or completes an already-selected clipboard dwell, rather than being flashed
-and erased by a canceled wait. Exit zero means the requested artifact reached its selected destination.
+persistent plain terminal output rather than being flashed and erased by a canceled wait. Exit zero means the
+requested artifact reached its selected destination.
 
 ## 6. Implementation work
 
@@ -310,7 +305,8 @@ Primary files: `internal/api/api.go`, `internal/api/client.go`, `internal/api/er
 - Replace alias/implicit dispatch with an exact command switch. Remove `report` from `subFlags` and dispatch.
 - Register only the agreed flags, detect duplicate/mixed sources, and remove suite flags, `--words`,
   `--insecure-http`, `--force`, fragment flags, `--token`, and obsolete command shorthands.
-- Rename secret file input to `--input`. Add `--token-fd` and clipboard support to decrypt.
+- Rename secret file input to `--input` and add `--token-fd`. Retire built-in clipboard delivery because its
+  terminal protocol cannot establish destination success.
 - Resolve server origin per operation instead of globally redirecting every target. Always emit the human
   server line before network access, including quiet mode; put it in every network JSON result.
 - Remove `BURNERPAD_PASSPHRASE` and every obsolete environment lookup. Set the timeout default to 12 seconds.
@@ -333,10 +329,10 @@ Primary files: `internal/cli/create.go`, `internal/cli/passphrase.go`, `wordlist
 ### F. Rebuild reveal and recovery
 
 - Require a full URL and collect the canonical passphrase before claim.
-- Pre-open requested output/recovery destinations and preflight the clipboard before the POST.
+- Pre-open requested output/recovery destinations and preflight the terminal viewer before the POST.
 - Persist an opted-in recovery blob immediately after claim, then perform unlimited local phrase correction
   without another network request.
-- Validate decrypted bytes as UTF-8 and deliver them to exactly one viewer/stdout/file/clipboard/JSON
+- Validate decrypted bytes as UTF-8 and deliver them to exactly one viewer/stdout/file/JSON
   destination. Route both terminal modes through the safe renderer; retain original bytes for every other
   destination. Never include the held blob in an error object or diagnostic.
 - Simplify offline decrypt to suite `0x02`, one base64url blob format, the shared phrase collector, and the same
@@ -371,21 +367,22 @@ Primary files: `internal/cli/output.go`, `internal/cli/exit.go`, `internal/cli/h
 ### I. Retain and simplify terminal behavior
 
 - Keep the pure autocomplete state machine, terminal restoration, bracketed-paste hygiene, plain-mode
-  accessibility, shared safe plaintext renderer, alternate-screen viewer, OSC 52, tmux passthrough, and
-  best-effort memory wiping. Test both viewer modes against ESC/OSC/CSI, C0/C1, DEL, bidi/format characters,
-  malformed UTF-8, and LF/CRLF without allowing untrusted terminal controls through.
+  accessibility, shared safe plaintext renderer, alternate-screen viewer, and best-effort memory wiping. Test
+  both viewer modes against ESC/OSC/CSI, C0/C1, DEL, bidi/format characters, malformed UTF-8, and LF/CRLF
+  without allowing untrusted terminal controls through.
 - Remove free-form phrase entry, binary detection/output branches, generated-word editing beyond reroll, and
   gestures for adjustable word counts.
-- Extend the same clipboard delivery/countdown path to decrypt and map unsupported destinations to exit 3.
+- Keep clipboard protocols and helper executables outside the destination boundary.
 
-Primary files: `internal/term/`, with PTY coverage for prompt, retry, viewer, signal, and clipboard cleanup.
+Primary files: `internal/term/`, with PTY coverage for prompt, retry, viewer, and signal cleanup.
 
-### J. Replace documentation and completion artifacts
+### J. Replace documentation and the completion surface
 
 - Rewrite `README.md`, `docs/ARCHITECTURE.md`, `docs/TASKS.md`, and `docs/burnerpad.1.scd` from this plan rather
   than editing retired examples piecemeal.
 - Keep `CONTEXT.md` as the canonical glossary and `docs/GLOSSARY.md` explicitly historical.
-- Regenerate Bash, Zsh, Fish, and PowerShell completions from the exact no-alias command/flag set.
+- Serve Bash, Zsh, Fish, and PowerShell completions from one in-binary definition matching the exact no-alias
+  command/flag set; do not keep duplicate checked-in artifacts.
 - Update `SECURITY.md`, `CONTRIBUTING.md`, release examples, and comments that claim GET/410/403, fragments,
   binary support, retries, output blob recovery, or pre-v1 release channels.
 

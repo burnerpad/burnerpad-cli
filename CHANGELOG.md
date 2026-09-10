@@ -3,19 +3,7 @@
 All notable changes are documented here. Versions follow Semantic Versioning; the executable version is
 derived from the immutable release tag and never hardcoded in source.
 
-## [Unreleased]
-
-### Security
-
-- Render decrypted plaintext as inert visible escapes in interactive terminals without changing pipe/file
-  bytes, decoded JSON values, or the bytes encoded into OSC 52 requests.
-- Acquire the implicit viewer's controlling terminal before a destructive reveal request can consume the secret.
-- Classify every undocumented post-send mutation status as operation-specific outcome unknown.
-- Cancel and join commands on the first termination signal so transmitted mutations remain classifiable,
-  create/reveal handoffs are not abandoned, clipboard clears run, pending post-claim terminal delivery remains
-  persistently visible, and viewer Ctrl+C exits as an interruption.
-
-## [1.0.0] - 2026-09-10
+## Unreleased
 
 ### Added
 
@@ -27,8 +15,7 @@ derived from the immutable release tag and never hardcoded in source.
 - Visible burnerpad.io default with configurable self-hosted origins and operation-authoritative URL origins.
 - Optional whole-second TTL requests with returned effective-TTL and clamp reporting.
 - Owner-only, exclusive plaintext output and claimed-ciphertext recovery files.
-- Alternate-screen plaintext viewer, exact piped UTF-8 output, fixed JSON output, and OSC 52 clipboard
-  delivery with timed best-effort clearing.
+- Alternate-screen plaintext viewer, exact piped UTF-8 output, and fixed JSON output.
 - Frozen exit meanings for input, local I/O, unavailable secrets, passphrase/plaintext failures, definitive
   server rejection, temporary service failures, invalid responses, uncertain mutations, and internal faults.
 - One-attempt mutation transport with explicit create/claim/revoke outcome-unknown reporting.
@@ -45,6 +32,12 @@ derived from the immutable release tag and never hardcoded in source.
 - The server API client performs no retry, telemetry, update check, or compatibility probe.
 - GitHub Actions and release container images are pinned by immutable digest; unverified package channels are
   excluded from the first release rather than failing or publishing through an unowned destination.
-
-[Unreleased]: https://github.com/burnerpad/burnerpad-cli/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/burnerpad/burnerpad-cli/releases/tag/v1.0.0
+- Render decrypted plaintext as inert visible escapes in interactive terminals without changing pipe/file
+  bytes or decoded JSON values.
+- Acquire the implicit viewer's controlling terminal before a destructive reveal request can consume the secret.
+- Classify every undocumented post-send mutation status as operation-specific outcome unknown.
+- Cancel and join commands on the first termination signal so transmitted mutations remain classifiable,
+  create/reveal handoffs are not abandoned, pending post-claim terminal delivery remains persistently visible,
+  and viewer Ctrl+C exits as an interruption.
+- Retire OSC 52 clipboard options before version one because terminal acceptance and payload completeness
+  cannot be verified, keeping exit zero's destination-delivery contract unqualified.

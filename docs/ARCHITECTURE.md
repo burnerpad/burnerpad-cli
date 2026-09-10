@@ -1,7 +1,7 @@
 # Burnerpad CLI architecture
 
 This document specifies the released v1 architecture. Domain terminology lives in [`CONTEXT.md`](../CONTEXT.md),
-and the decisions behind the current boundary are recorded in ADR-0021 through ADR-0033.
+and the decisions behind the current boundary are recorded in ADR-0021 through ADR-0035.
 
 ## Product boundary
 
@@ -25,7 +25,7 @@ cmd/burnerpad
   └─ internal/cli       process grammar, protected inputs, output and exit contract
        ├─ internal/id   operation-specific target parsing and ID normalization
        ├─ internal/api  one-attempt current burnerpad-lite HTTP client
-       ├─ internal/term controlling-terminal prompts, viewer and OSC 52
+       ├─ internal/term controlling-terminal prompts and viewer
        ├─ internal/secret owner-only files and best-effort memory hygiene
        ├─ wordlist      shared EFF list, generation and canonicalization
        └─ envelope      suite-0x02 encryption, decryption and canonical base64url
@@ -137,7 +137,7 @@ Reveal performs fallible local work in this order:
 1. parse and normalize the full URL;
 2. collect and canonicalize the complete phrase;
 3. reserve the selected plaintext and recovery files with exclusive owner-only creation;
-4. preflight clipboard/terminal destinations;
+4. preflight the selected file/terminal destination;
 5. disclose the URL origin;
 6. send one claim request;
 7. immediately write an opted-in recovery blob;
@@ -150,18 +150,16 @@ abandoning held ciphertext warns, but neither stderr nor JSON ever receives the 
 
 ## Plaintext destinations
 
-`--json`, `--out`, and `--clip` are mutually exclusive. With no explicit destination, terminal stdout uses
+`--json` and `--out` are mutually exclusive. With no explicit destination, terminal stdout uses
 one safe renderer in alternate-screen and plain/fallback modes. It preserves graphic UTF-8 and logical line
 breaks while visibly escaping other control, format, and non-graphic characters; sender-controlled terminal
 instructions never reach the TTY. The rendition is intentionally not byte-exact. Non-terminal stdout and
-`--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. OSC 52
-encodes the original bytes without the viewer transformation, but terminal delivery is unverifiable. `--out`
+`--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. `--out`
 creates mode `0600` (or an owner-only Windows DACL), uses exclusive creation, and never overwrites. A
-reservation made before a failed claim is removed only by the invocation that created it.
-
-OSC 52 is the only clipboard mechanism. Create copies the link. Reveal/decrypt copy plaintext, remain alive
-for a default 45-second delay, then best-effort clear and warn that clipboard managers can retain history.
-Cancellation during that delay attempts the same clear synchronously before returning.
+reservation made before a failed claim is removed only by the invocation that created it. There is no built-in
+clipboard destination: terminal clipboard protocols cannot confirm acceptance or completeness, and helper
+executables would add a PATH/platform trust boundary. Callers may compose non-terminal stdout with their own
+tool; destructive reveal should pair unverified external delivery with `--keep-blob`.
 
 ## Machine and exit contract
 
@@ -169,8 +167,8 @@ JSON uses four fixed success structs and one flat error struct. Error fields nev
 phrase, token, ciphertext, plaintext, raw response, path, or nested error. `retry_after` appears only when a
 server supplied it. Field names and exit meanings are documented in the README and ADR-0028.
 
-One Run-owned cancellation context covers input, mutation transport, interactive waits, and the clipboard
-timer. On the first signal, Run cancels and joins command dispatch before restoring the terminal or returning.
+One Run-owned cancellation context covers input, mutation transport, and interactive waits. On the first
+signal, Run cancels and joins command dispatch before restoring the terminal or returning.
 If cancellation leaves an already-transmitted mutation unconfirmed, its operation-specific outcome-unknown
 result takes precedence. Definitive command/local failures found while joining also remain authoritative; a
 confirmed success completes required post-success handoff, recovery, output, and cleanup attempts before the
@@ -178,8 +176,8 @@ signal result. Signal exits return 130/143 without synthesizing JSON. The produc
 stopped after the first signal so a second signal restores immediate OS termination. Exit zero means the
 selected artifact reached its destination, not merely that crypto or HTTP succeeded. If confirmed one-time
 plaintext becomes ready with cancellation already pending, the handoff cannot safely reuse that canceled
-wait: terminal delivery becomes persistent plain output, and clipboard delivery completes its configured
-dwell. A signal arriving after an interactive delivery began cancels that wait normally.
+wait, so terminal delivery becomes persistent plain output. A signal arriving after an interactive delivery
+began cancels that wait normally.
 
 ## Release and compatibility gates
 

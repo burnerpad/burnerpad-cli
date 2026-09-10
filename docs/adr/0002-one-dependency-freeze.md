@@ -17,7 +17,8 @@ explicitly:
 - the list-locked autocomplete is **hand-rolled** (~300 lines over raw mode) as a pure state machine;
 - flag parsing is stdlib `flag` with per-subcommand FlagSets and a ~15-line re-parse loop for
   GNU-style interleaving (no cobra);
-- shell completions are static, hand-written, `go:embed`-ed scripts;
+- shell completions are small hand-written scripts served from one in-binary definition, without duplicate
+  checked-in artifacts;
 - the Linux PTY smoke test hand-rolls `/dev/ptmx` over `x/sys` ioctls instead of `creack/pty`.
 
 ## Consequences

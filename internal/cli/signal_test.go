@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/burnerpad/burnerpad-cli/envelope"
 )
 
 const signalTestTimeout = 5 * time.Second
@@ -303,82 +301,6 @@ func TestMapDecryptErrorPreservesRetryInterruption(t *testing.T) {
 	}
 }
 
-func TestPendingCancellationCompletesConfirmedClipboardDwell(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	w := newOSCSignalWriter()
-	duration := 30 * time.Millisecond
-	a := &application{ctx: ctx, env: Env{Stderr: io.Discard}}
-	start := time.Now()
-	err := a.deliverPlaintext(&destination{
-		clip:       clipFlag{enabled: true, duration: duration},
-		clipWriter: w,
-	}, "revealed", "https://example.com", []byte("claimed plaintext"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if elapsed := time.Since(start); elapsed < duration {
-		t.Fatalf("clipboard was cleared after %v, before the %v handoff completed", elapsed, duration)
-	}
-	if w.clearCount() != 1 {
-		t.Fatalf("clipboard clears=%d, want exactly 1", w.clearCount())
-	}
-}
-
-func TestRunSignalClearsClipboardBeforeExit(t *testing.T) {
-	t.Setenv("TMUX", "")
-	blob := envelope.EncryptPassphrase([]byte(contractPhrase), []byte("clipboard plaintext"))
-	blobPath := filepath.Join(t.TempDir(), "blob")
-	if err := os.WriteFile(blobPath, append(envelope.EncodeToBytes(blob), '\n'), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, test := range []struct {
-		name string
-		sig  os.Signal
-		exit int
-	}{
-		{name: "SIGINT", sig: os.Interrupt, exit: 130},
-		{name: "SIGTERM", sig: syscall.SIGTERM, exit: 143},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			w := newOSCSignalWriter()
-			signals := make(chan os.Signal)
-			e, _, _ := contractEnv([]string{
-				"decrypt", "--blob-file", blobPath, "--passphrase-file", phraseFile(t), "--clip=1s",
-			}, "")
-			e.Stdout = io.Discard
-			e.Stderr = w
-			e.StderrTTY = true
-			e.Signals = signals
-			exitC := make(chan int, 1)
-			go func() { exitC <- Run(e) }()
-
-			w.waitCopied(t)
-			select {
-			case signals <- test.sig:
-			case code := <-exitC:
-				t.Fatalf("Run returned %d before the clipboard signal", code)
-			case <-time.After(signalTestTimeout):
-				t.Fatal("Run did not receive the clipboard signal")
-			}
-			code := waitSignalExit(t, exitC)
-			clearsAtReturn := w.clearCount()
-			if clearsAtReturn == 0 {
-				// Let the old, unjoined implementation finish its timer before this test
-				// returns; the assertion below still records that clear happened too late.
-				w.waitCleared(t)
-			}
-			if code != test.exit {
-				t.Fatalf("exit=%d, want %d", code, test.exit)
-			}
-			if clearsAtReturn != 1 {
-				t.Fatalf("clipboard clears when Run returned=%d, want exactly 1", clearsAtReturn)
-			}
-		})
-	}
-}
-
 func waitSignalEvent(t *testing.T, event <-chan struct{}, name string) {
 	t.Helper()
 	select {
@@ -440,35 +362,4 @@ func (w *signalGateWriter) bytes() []byte {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return append([]byte(nil), w.buf.Bytes()...)
-}
-
-type oscSignalWriter struct {
-	copied, cleared       chan struct{}
-	copyOnce, clearedOnce sync.Once
-	mu                    sync.Mutex
-	clears                int
-}
-
-func newOSCSignalWriter() *oscSignalWriter {
-	return &oscSignalWriter{copied: make(chan struct{}), cleared: make(chan struct{})}
-}
-
-func (w *oscSignalWriter) Write(p []byte) (int, error) {
-	if bytes.Equal(p, []byte("\x1b]52;c;\a")) {
-		w.mu.Lock()
-		w.clears++
-		w.mu.Unlock()
-		w.clearedOnce.Do(func() { close(w.cleared) })
-	} else if bytes.HasPrefix(p, []byte("\x1b]52;c;")) {
-		w.copyOnce.Do(func() { close(w.copied) })
-	}
-	return len(p), nil
-}
-
-func (w *oscSignalWriter) waitCopied(t *testing.T)  { waitSignalEvent(t, w.copied, "OSC 52 copy") }
-func (w *oscSignalWriter) waitCleared(t *testing.T) { waitSignalEvent(t, w.cleared, "OSC 52 clear") }
-func (w *oscSignalWriter) clearCount() int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.clears
 }

@@ -1,6 +1,9 @@
 # ADR-0033: Make plaintext destinations explicit and non-overwriting
 
-Date: 2026-09-10 · Status: Accepted, amended for safe rendering and cancellation · Supersedes: [ADR-0016](0016-clipboard-osc52-only.md)
+Date: 2026-09-10 · Status: Accepted, amended by [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md) · Supersedes: [ADR-0016](0016-clipboard-osc52-only.md)
+
+ADR-0035 removes the clipboard portions of this decision before version one; the remaining destination and
+safe-rendering decisions continue to apply.
 
 ## Context
 
