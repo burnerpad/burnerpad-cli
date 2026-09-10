@@ -118,6 +118,13 @@ error.
 7 network/rate-limit/temporary service failure; 8 invalid server response or unsupported ciphertext;
 9 mutation outcome unknown; 10 internal failure; 130 SIGINT; 143 SIGTERM.
 
+The first signal cancels and joins the command. A transmitted mutation left unconfirmed reports status 9
+instead of hiding its uncertainty behind 130/143; definitive local failures remain authoritative, and a
+confirmed success finishes required handoff and cleanup attempts before returning 130/143. A second signal
+restores immediate operating-system termination. Confirmed one-time plaintext that becomes ready after
+cancellation uses persistent plain terminal output, or completes an already-selected clipboard dwell, instead
+of being flashed and erased by a canceled wait.
+
 # ENVIRONMENT
 
 _BURNERPAD_SERVER_

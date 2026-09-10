@@ -2,6 +2,8 @@ package term
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -50,17 +52,68 @@ func TestViewerHeaderDimUnlessNoColor(t *testing.T) {
 	}
 }
 
-// Ctrl+C closes cleanly (rmcup written, nil error); the exit itself is the
-// caller's job (A8). Unrelated keys are ignored.
+// Ctrl+C is an interrupt (with rmcup still written). Unrelated keys are
+// ignored.
 func TestViewerCtrlCAndIgnoredKeys(t *testing.T) {
 	var buf bytes.Buffer
 	err := showViewer(&buf, script(rn('x'), kd(KindSpace), kd(KindIgnored), kd(KindCtrlC)),
 		[]byte("secret"), ViewerOpts{NoColor: true})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, ErrInterrupted) {
+		t.Fatalf("err = %v, want ErrInterrupted", err)
 	}
 	if !strings.HasSuffix(buf.String(), "\x1b[?1049l") {
 		t.Fatalf("Ctrl+C did not restore the primary screen: %q", buf.String())
+	}
+}
+
+func TestViewerCancellationAndReadErrorRestorePrimaryScreen(t *testing.T) {
+	for name, next := range map[string]func(context.Context) (Event, error){
+		"canceled": func(ctx context.Context) (Event, error) {
+			<-ctx.Done()
+			return Event{}, ctx.Err()
+		},
+		"read error": func(context.Context) (Event, error) {
+			return Event{}, io.ErrUnexpectedEOF
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			if name == "canceled" {
+				cancel()
+			} else {
+				defer cancel()
+			}
+			var buf bytes.Buffer
+			err := showViewerContext(ctx, &buf, next, []byte("secret"), ViewerOpts{NoColor: true},
+				func() error {
+					_, err := io.WriteString(&buf, "\x1b[?1049h")
+					return err
+				},
+				func() { _, _ = io.WriteString(&buf, "\x1b[?1049l") })
+			want := error(io.ErrUnexpectedEOF)
+			if name == "canceled" {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("err = %v, want %v", err, want)
+			}
+			if !strings.HasSuffix(buf.String(), "\x1b[?1049l") {
+				t.Fatalf("primary screen not restored: %q", buf.String())
+			}
+		})
+	}
+}
+
+func TestViewerNoAltRendersBeforeReturningCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var buf bytes.Buffer
+	err := showViewerContext(ctx, &buf, nil, []byte("claimed secret"), ViewerOpts{NoAlt: true}, nil, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if !strings.Contains(buf.String(), "claimed secret") {
+		t.Fatalf("claimed plaintext was not rendered: %q", buf.String())
 	}
 }
 

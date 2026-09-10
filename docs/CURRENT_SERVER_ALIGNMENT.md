@@ -247,8 +247,14 @@ error. Use a closed code vocabulary grouped under the frozen exit meanings:
 | `9` | `create_outcome_unknown`, `claim_outcome_unknown`, `revoke_outcome_unknown` |
 | `10` | `internal` |
 
-Signals exit `130` for SIGINT and `143` for SIGTERM without manufacturing an ordinary JSON error. Exit zero
-means the requested artifact reached its selected destination.
+The first SIGINT or SIGTERM cancels a Run-owned context and joins dispatch so terminal, recovery, output, and
+clipboard cleanup attempts can finish. If cancellation leaves an already-transmitted mutation unconfirmed,
+its operation-specific outcome-unknown error and exit `9` take precedence. Definitive command/local failures
+found while joining also remain authoritative; a confirmed success completes its required handoff and then
+returns `130`/`143`. Signal exits do not manufacture an ordinary JSON error. A second production signal
+restores immediate OS termination. Confirmed one-time plaintext that becomes ready after cancellation uses
+persistent plain terminal output, or completes an already-selected clipboard dwell, rather than being flashed
+and erased by a canceled wait. Exit zero means the requested artifact reached its selected destination.
 
 ## 6. Implementation work
 

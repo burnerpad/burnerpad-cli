@@ -10,6 +10,11 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - Plaintext is encrypted locally with suite `0x02`; the server receives only opaque ciphertext.
 - Share URLs contain no key. The passphrase travels out of band and never enters a request.
 - Create, claim, and revoke each send at most one operation request per invocation.
+- The first termination signal cancels and joins an in-flight command. A transmitted mutation left
+  unconfirmed is reported as outcome unknown, and required terminal/clipboard cleanup is attempted before
+  the process returns.
+- Confirmed one-time plaintext that becomes ready after cancellation is not flashed and erased: terminal
+  delivery falls back to persistent plain rendering, while clipboard delivery completes its configured dwell.
 - A claim validates its URL, phrase, output file, recovery file, and clipboard destination first.
 - A wrong phrase is retried locally against held ciphertext and cannot issue another claim.
 - Remote servers require verified HTTPS, loopback alone may use HTTP, and redirects are refused.
@@ -36,6 +41,8 @@ share URL supplied in argv, so the CLI warns and supports prompt/pipe URL input.
 history after OSC 52 clearing. Plain terminal mode can place the safe, escaped rendition in scrollback;
 the alternate screen only reduces primary-scrollback exposure. A compromised terminal, or a caller that
 replays byte-exact pipe, file, decoded-JSON, or clipboard output to a terminal, remains out of scope.
+Intrinsically blocked operating-system I/O may delay graceful termination; a second signal restores immediate
+OS termination and can bypass best-effort terminal, file, or clipboard cleanup. SIGKILL cannot run cleanup.
 
 ### Go memory hygiene
 

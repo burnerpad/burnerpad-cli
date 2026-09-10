@@ -24,7 +24,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 1. Prevent release-protection bypass and tag-triggered shell execution.
 - [x] 2. Render decrypted plaintext safely in interactive terminals.
 - [x] 3. Preflight the implicit viewer before destructive reveal.
-- [ ] 4. Make signals mutation-aware and run required cleanup.
+- [x] 4. Make signals mutation-aware and run required cleanup.
 - [ ] 5. Resolve the unverifiable OSC 52 delivery contract.
 - [x] 6. Correct post-mutation HTTP outcome classification.
 - [ ] 7. Enforce the advertised conformance-vector pin.
@@ -132,6 +132,22 @@ The same lifecycle causes two related bugs:
 
 - SIGINT during the clipboard countdown exits before the clear sequence at `internal/cli/reveal.go:198-207`.
 - Ctrl+C inside the raw viewer returns success because `internal/term/viewer.go:78-87` returns `nil`.
+
+Remediation applied 2026-09-11:
+
+- One Run-owned context now covers input, all three mutation requests, terminal waits, and timed cleanup. The
+  first SIGINT/SIGTERM cancels and joins dispatch; an already-transmitted mutation that cannot be confirmed
+  retains its operation-specific exit-`9` result, while definitive completed results remain authoritative.
+- A queued signal before dispatch sends no request, simultaneous completed dispatch wins deterministically,
+  and production signal notification stops after the first signal so a second regains immediate OS behavior.
+- Terminal input now uses cancellation-aware, TTY-owned reads. Password/raw/alternate-screen/bracketed-paste
+  state is synchronously restored; viewer Ctrl+C is an interruption; non-EOF viewer errors remain local errors.
+- Clipboard cancellation attempts its clear exactly once before return. Confirmed one-time plaintext that
+  becomes ready after cancellation is not flashed and erased: terminal handoff becomes persistent plain output,
+  while an explicitly selected clipboard handoff completes its configured dwell.
+- Regression coverage exercises pre-dispatch SIGINT/SIGTERM, create/claim/revoke post-send ambiguity, confirmed
+  and failed handoffs, active pipe cancellation, both clipboard signals, retry-error preservation, real Linux
+  PTY restoration, Windows compilation, and deterministic signal/result precedence.
 
 ### 5. High — OSC 52 success is reported despite delivery being unverifiable
 

@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"golang.org/x/term"
 )
 
 // platformState: termios state is fully captured by x/term; nothing extra.
@@ -43,6 +45,14 @@ func openTTY() (*TTY, error) {
 // enableVT is a no-op on Unix: any terminal that gets this far speaks VT.
 func (t *TTY) enableVT() (restore func(), err error) {
 	return func() {}, nil
+}
+
+func (t *TTY) makePasswordInput() (restore func(), err error) {
+	state, err := term.MakeRaw(int(t.in.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	return func() { _ = term.Restore(int(t.in.Fd()), state) }, nil
 }
 
 func (t *TTY) platformEmergency() {}

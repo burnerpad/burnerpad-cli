@@ -1,6 +1,6 @@
 # ADR-0033: Make plaintext destinations explicit and non-overwriting
 
-Date: 2026-09-10 · Status: Accepted, amended for terminal-safe rendering · Supersedes: [ADR-0016](0016-clipboard-osc52-only.md)
+Date: 2026-09-10 · Status: Accepted, amended for safe rendering and cancellation · Supersedes: [ADR-0016](0016-clipboard-osc52-only.md)
 
 ## Context
 
@@ -24,7 +24,11 @@ Clipboard access is opt-in OSC 52 only, including tmux passthrough, with no help
 `create --clip` copies the share link and never the phrase. `reveal --clip[=DURATION]` and
 `decrypt --clip[=DURATION]` copy plaintext instead of displaying it, default to 45 seconds, keep the process alive,
 and then attempt to clear the clipboard. The CLI warns that clearing is best-effort and clipboard managers
-may retain history. Clipboard and output destinations are validated before a network claim.
+may retain history. Cancellation during the countdown stops the timer, attempts the same clear exactly once,
+and only then returns the signal result. Clipboard and output destinations are validated before a network
+claim. If cancellation was already pending before confirmed plaintext reached this handoff, the configured
+dwell completes; terminal viewing in the equivalent edge case falls back to persistent plain output rather
+than entering and immediately leaving the alternate screen.
 
 ## Consequences
 

@@ -69,6 +69,7 @@ type keyDecoder struct {
 	u8need int    // continuation bytes still expected
 	paste  []byte // paste payload collected so far
 	pmatch int    // bytes of pasteEnd currently matched
+	cr     bool   // previous ground byte was CR; suppress its CRLF partner
 }
 
 func newKeyDecoder() *keyDecoder { return &keyDecoder{} }
@@ -200,6 +201,12 @@ func (d *keyDecoder) feed(b byte) []Event {
 
 func (d *keyDecoder) ground(b byte) []Event {
 	one := func(k EventKind) []Event { return []Event{{Kind: k}} }
+	if d.cr {
+		d.cr = false
+		if b == '\n' {
+			return nil
+		}
+	}
 	switch {
 	case b == 0x1b:
 		d.st = dEsc
@@ -213,7 +220,10 @@ func (d *keyDecoder) ground(b byte) []Event {
 		return one(KindBackspace)
 	case b == '\t':
 		return one(KindTab)
-	case b == '\r' || b == '\n':
+	case b == '\r':
+		d.cr = true
+		return one(KindEnter)
+	case b == '\n':
 		return one(KindEnter)
 	case b == 0x0f:
 		return one(KindCtrlO)

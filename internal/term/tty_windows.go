@@ -58,6 +58,23 @@ func (t *TTY) enableVT() (restore func(), err error) {
 	}, nil
 }
 
+// makePasswordInput mirrors x/term's legacy-compatible password posture but
+// leaves the state lifetime with TTY. In particular it does not request
+// ENABLE_VIRTUAL_TERMINAL_INPUT, which older conhost versions can reject.
+func (t *TTY) makePasswordInput() (restore func(), err error) {
+	h := windows.Handle(t.in.Fd())
+	var mode uint32
+	if err := windows.GetConsoleMode(h, &mode); err != nil {
+		return nil, err
+	}
+	want := mode &^ (windows.ENABLE_ECHO_INPUT | windows.ENABLE_LINE_INPUT)
+	want |= windows.ENABLE_PROCESSED_INPUT
+	if err := windows.SetConsoleMode(h, want); err != nil {
+		return nil, err
+	}
+	return func() { _ = windows.SetConsoleMode(h, mode) }, nil
+}
+
 func (t *TTY) platformEmergency() {
 	t.mu.Lock()
 	p := t.plat
