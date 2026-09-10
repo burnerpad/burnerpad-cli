@@ -246,6 +246,24 @@ The application implements the core create/reveal/burn/decrypt paths, but not ev
 - `scripts/sync-vectors.sh` uses a predictable `/tmp/bp-wordlist.$$` path.
 - The changelog says 1.0.0 is released, while this checkout has no tag, the installer is still a refusing development template, and release tasks remain unchecked.
 
+Finding 9 task ledger:
+
+- [x] 9.1 Preserve interruption and local-I/O errors during wrong-phrase retry.
+- [ ] 9.2 Add bounded paging/scrolling to the interactive viewer.
+- [ ] 9.3 Make interactive phrase parsing use the canonical 7–64-word ASCII-whitespace grammar.
+- [ ] 9.4 Bound bracketed-paste and plain prompt-line memory.
+- [ ] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
+- [ ] 9.6 Remove the inert `--quiet` surface.
+- [ ] 9.7 Remove the unused seeded-retry subsystem.
+- [ ] 9.8 Correct completion grammar and unsupported flag suggestions.
+- [ ] 9.9 Warn when `burn` receives a share URL in argv.
+- [ ] 9.10 Add installation guidance and complete command help behavior/topics.
+- [ ] 9.11 Make the installer reject unknown and extra arguments.
+- [ ] 9.12 Keep rejected pasted tokens out of diagnostics.
+- [ ] 9.13 Enforce the protected credential-file ownership/type/mode/symlink contract.
+- [ ] 9.14 Replace the predictable vector-sync temporary path.
+- [ ] 9.15 Make all pre-release changelog, installer, documentation, and task claims truthful.
+
 ## Minimality assessment
 
 There are 4,670 production Go lines and 4,159 test lines. `internal/term` alone is 1,862 production lines—about 40% of the executable—and has 2,181 test lines.
