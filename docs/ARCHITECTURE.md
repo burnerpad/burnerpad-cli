@@ -154,8 +154,10 @@ abandoning held ciphertext warns, but neither stderr nor JSON ever receives the 
 `--json` and `--out` are mutually exclusive. With no explicit destination, terminal stdout uses
 one safe renderer in alternate-screen and plain/fallback modes. It preserves graphic UTF-8 and logical line
 breaks while visibly escaping other control, format, and non-graphic characters; sender-controlled terminal
-instructions never reach the TTY. The rendition is intentionally not byte-exact. Non-terminal stdout and
-`--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. `--out`
+instructions never reach the TTY. Alternate-screen output is split into terminal-sized pages without copying
+the complete rendered plaintext: Space or Enter advances, `b` goes back, and `q` closes. Terminals too small
+for the frame use the scrollback fallback. The rendition is intentionally not byte-exact. Non-terminal stdout
+and `--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. `--out`
 creates mode `0600` (or an owner-only Windows DACL), uses exclusive creation, and never overwrites. A
 reservation made before a failed claim is removed only by the invocation that created it. There is no built-in
 clipboard destination: terminal clipboard protocols cannot confirm acceptance or completeness, and helper

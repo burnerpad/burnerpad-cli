@@ -102,8 +102,10 @@ phrase across secrets; suite 0x02 does not bind the server-assigned ID into its 
 # OUTPUT
 
 With no explicit destination, reveal/decrypt use a terminal-safe escaped rendition on terminal stdout and
-exact UTF-8 bytes on piped stdout. The same safe renderer applies in plain/fallback mode. Network JSON results
-include _server_; decoding their _plaintext_ string reproduces the authenticated UTF-8 bytes. Errors are flat
+exact UTF-8 bytes on piped stdout. The alternate-screen viewer is paged: Space or Enter advances, *b* goes
+back, and *q* closes; terminals too small for the frame use the scrollback fallback. The same safe renderer
+applies in plain/fallback mode. Network JSON results include _server_; decoding their _plaintext_ string
+reproduces the authenticated UTF-8 bytes. Errors are flat
 and never contain the URL, ID, phrase, management token, ciphertext, plaintext, raw response, path, or nested
 error.
 

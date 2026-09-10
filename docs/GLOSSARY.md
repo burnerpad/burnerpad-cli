@@ -89,7 +89,7 @@ preserve the blob — the process now holds the only copy in the universe).
 | **commit** | Accepting the current word into the phrase (Space/Enter when unambiguous); committed words render in full and count toward the ≥ 7 gate. |
 | **free-form mode** | Ctrl+O fallback: masked line entry for non-wordlist passphrases other clients may mint (list-locking is a burnerpad-phrase optimization, not a format rule) (§7.2). |
 | **plain mode** | `--plain` / `BURNERPAD_PLAIN=1` / `CI` / `TERM=dumb`: line-based prompts, no raw mode, no ANSI; the accessibility-first equivalent path (§7.6). |
-| **alternate-screen viewer** | The `less`-style reveal display on a TTY: a terminal-safe plaintext rendition is shown on the alternate screen; `q` returns while the alternate screen limits primary-scrollback exposure (§8.1). |
+| **alternate-screen viewer** | The `less`-style reveal display on a TTY: a terminal-safe plaintext rendition is paged with Space/Enter, `b`, and `q` while the alternate screen limits primary-scrollback exposure (§8.1). |
 | **OSC 52** | A retired pre-release terminal clipboard mechanism. The CLI removed it because the terminal cannot acknowledge acceptance or payload completeness; see ADR-0035. |
 | **bracketed paste** | Terminal mode 2004: a paste arrives delimited by markers, letting the prompt validate a whole phrase atomically — all words commit, or the entire paste is rejected (§7.2). |
 | **stream discipline** | The §5.1 contract: stdout = artifact only; stderr = everything else; interactivity decided solely by `term.IsTerminal` per fd. |

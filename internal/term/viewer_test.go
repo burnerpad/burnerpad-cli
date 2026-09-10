@@ -33,8 +33,9 @@ func TestViewerAltScreenGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "\x1b[?1049h\x1b[H\x1b[2J" +
-		"  52 bytes · controls escaped · q closes\r\n\r\n" +
+		"  52 bytes · controls escaped\r\n\r\n" +
 		"db: postgres://svc_deploy:wR8-kk2@10.0.4.7:5432/prod" +
+		"\x1b[24;1H  end · q closes" +
 		"\x1b[?1049l"
 	if got := buf.String(); got != want {
 		t.Fatalf("screen = %q\nwant     %q", got, want)
@@ -46,7 +47,7 @@ func TestViewerHeaderDimUnlessNoColor(t *testing.T) {
 	if err := showViewer(&buf, script(rn('q')), []byte("x"), ViewerOpts{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "\x1b[2m1 bytes · controls escaped · q closes\x1b[22m") {
+	if !strings.Contains(buf.String(), "\x1b[2m1 bytes · controls escaped\x1b[22m") {
 		t.Fatalf("missing dim header: %q", buf.String())
 	}
 }
@@ -83,7 +84,7 @@ func TestViewerCancellationAndReadErrorRestorePrimaryScreen(t *testing.T) {
 				defer cancel()
 			}
 			var buf bytes.Buffer
-			err := showViewerContext(ctx, &buf, next, []byte("secret"), ViewerOpts{NoColor: true},
+			err := showViewerContext(ctx, &buf, next, []byte("secret"), ViewerOpts{NoColor: true}, 80, 24,
 				func() error {
 					_, err := io.WriteString(&buf, "\x1b[?1049h")
 					return err
@@ -107,7 +108,7 @@ func TestViewerNoAltRendersBeforeReturningCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var buf bytes.Buffer
-	err := showViewerContext(ctx, &buf, nil, []byte("claimed secret"), ViewerOpts{NoAlt: true}, nil, nil)
+	err := showViewerContext(ctx, &buf, nil, []byte("claimed secret"), ViewerOpts{NoAlt: true}, 80, 24, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -176,6 +177,89 @@ func TestViewerByteCountUsesUnexpandedSourceLength(t *testing.T) {
 	}
 }
 
+func TestViewerPagingReachesTailAndReturnsToPreviousPage(t *testing.T) {
+	const columns = 49
+	first := strings.Repeat("A", columns)
+	second := strings.Repeat("B", columns)
+	body := []byte(first + second + "TAIL-MARKER")
+
+	var buf bytes.Buffer
+	err := showViewerAtSize(&buf, script(kd(KindSpace), rn('b'), kd(KindEnter), kd(KindSpace), rn('q')),
+		body, ViewerOpts{NoColor: true}, columns+1, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	if got := strings.Count(output, first); got != 2 {
+		t.Fatalf("first page render count = %d, want 2 after back navigation", got)
+	}
+	if !strings.Contains(output, "TAIL-MARKER") {
+		t.Fatalf("final page was unreachable: %q", output)
+	}
+	if got := strings.Count(output, "\x1b[H\x1b[2J"); got != 5 {
+		t.Fatalf("page clear count = %d, want initial frame plus 4 redraws", got)
+	}
+}
+
+func TestViewerMaximumUnbrokenSecretHasProgressingCompletePageSpans(t *testing.T) {
+	body := bytes.Repeat([]byte{'x'}, 65_491)
+	const columns, rows = 79, 20
+	start, pages := 0, 0
+	for start < len(body) {
+		end := viewerPageEnd(body, start, columns, rows)
+		if end <= start || end > len(body) {
+			t.Fatalf("page %d span = [%d:%d] of %d", pages, start, end, len(body))
+		}
+		start = end
+		pages++
+	}
+	if start != len(body) || pages < 2 {
+		t.Fatalf("coverage ended at %d in %d pages, want %d bytes across multiple pages", start, pages, len(body))
+	}
+}
+
+func TestViewerPageBoundariesDoNotSplitRenderedTokens(t *testing.T) {
+	body := append([]byte(strings.Repeat("a", 48)), []byte("é\x1b")...)
+	firstEnd := viewerPageEnd(body, 0, 49, 1)
+	if firstEnd != 48 {
+		t.Fatalf("first page end = %d, want source offset 48 before wide rune", firstEnd)
+	}
+	secondEnd := viewerPageEnd(body, firstEnd, 49, 1)
+	if secondEnd != len(body) {
+		t.Fatalf("second page end = %d, want %d", secondEnd, len(body))
+	}
+	var rendered bytes.Buffer
+	if err := writeViewerPage(&rendered, body[firstEnd:secondEnd], 49); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := rendered.String(), `é\x1b`; got != want {
+		t.Fatalf("second page = %q, want %q", got, want)
+	}
+
+	crlfBody := []byte("a\r\nb")
+	if got := viewerPageEnd(crlfBody, 0, 49, 1); got != 3 {
+		t.Fatalf("CRLF page end = %d, want 3 after the complete line ending", got)
+	}
+}
+
+func TestViewerTinyTerminalUsesReachableScrollbackFallback(t *testing.T) {
+	var buf bytes.Buffer
+	entered := false
+	err := showViewerContext(context.Background(), &buf, nil, []byte("all plaintext remains reachable"),
+		ViewerOpts{NoColor: true}, 20, 4,
+		func() error { entered = true; return nil }, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entered {
+		t.Fatal("tiny terminal entered the alternate screen")
+	}
+	if got := buf.String(); !strings.Contains(got, "note: plaintext is entering terminal scrollback") ||
+		!strings.Contains(got, "all plaintext remains reachable") {
+		t.Fatalf("fallback output = %q", got)
+	}
+}
+
 func TestGroupDigits(t *testing.T) {
 	cases := map[int]string{
 		0:       "0",
@@ -239,7 +323,11 @@ func TestViewerEscapesAttackerTerminalSequences(t *testing.T) {
 		if start < 0 || !strings.HasSuffix(output, "\x1b[?1049l") {
 			t.Fatalf("malformed viewer frame: %q", output)
 		}
-		gotBody := output[start+len(bodyMarker) : len(output)-len("\x1b[?1049l")]
+		footer := strings.Index(output[start+len(bodyMarker):], "\x1b[24;1H")
+		if footer < 0 {
+			t.Fatalf("missing trusted footer frame: %q", output)
+		}
+		gotBody := output[start+len(bodyMarker) : start+len(bodyMarker)+footer]
 		wantBody := strings.ReplaceAll(wantLF, "\n", "\r\n")
 		if gotBody != wantBody {
 			t.Fatalf("body = %q, want %q", gotBody, wantBody)
@@ -247,8 +335,8 @@ func TestViewerEscapesAttackerTerminalSequences(t *testing.T) {
 		if got := strings.Count(output, "\x1b[?1049l"); got != 1 {
 			t.Fatalf("alternate-screen exit count = %d, want trusted epilogue only", got)
 		}
-		if got := strings.Count(output, "\x1b"); got != 4 {
-			t.Fatalf("raw ESC count = %d, want three trusted prologue controls and one epilogue", got)
+		if got := strings.Count(output, "\x1b"); got != 5 {
+			t.Fatalf("raw ESC count = %d, want prologue, footer-position, and epilogue controls", got)
 		}
 		assertViewerTextSafe(t, strings.ReplaceAll(gotBody, "\r\n", "\n"))
 	})
@@ -267,6 +355,22 @@ func TestViewerEscapesAttackerTerminalSequences(t *testing.T) {
 		}
 		assertViewerTextSafe(t, strings.TrimPrefix(buf.String(), note))
 	})
+}
+
+func showViewerAtSize(
+	w io.Writer,
+	next func() (Event, error),
+	plaintext []byte,
+	o ViewerOpts,
+	width, height int,
+) error {
+	nextContext := func(context.Context) (Event, error) { return next() }
+	enter := func() error {
+		_, err := io.WriteString(w, "\x1b[?1049h\x1b[H\x1b[2J")
+		return err
+	}
+	leave := func() { _, _ = io.WriteString(w, "\x1b[?1049l") }
+	return showViewerContext(context.Background(), w, nextContext, plaintext, o, width, height, enter, leave)
 }
 
 func FuzzViewerBodyIsTerminalSafe(f *testing.F) {
