@@ -18,7 +18,7 @@ import (
 //	word 6/7 ▸ … tul‸⟨ip⟩ ␣  corrected; Space commits tulip
 //	word 7/7 ▸ … wa‸ + "x"   BEL, status: no word starts with "wax"; x never enters buf
 //	word 7/7 ▸ … wol‸⟨verine⟩ ␣
-//	7 words · Enter decrypts — keep typing if the phrase was longer
+//	7 words · Enter submits — keep typing if the phrase was longer
 //	⏎  → decrypt
 func TestTranscript10c(t *testing.T) {
 	m := NewMachine(0)
@@ -115,7 +115,7 @@ func TestTranscript10c(t *testing.T) {
 		t.Fatalf(`after "wol": ghost = %q`, out.Ghost)
 	}
 	out = m.Handle(kd(KindSpace))
-	if out.Status != "7 words · Enter decrypts — keep typing if the phrase was longer" {
+	if out.Status != "7 words · Enter submits — keep typing if the phrase was longer" {
 		t.Fatalf("7th commit status = %q", out.Status)
 	}
 	if out.Done {

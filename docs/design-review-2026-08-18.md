@@ -132,7 +132,7 @@ multi-byte) and the `−1` as the reserved cursor cell. Property-tested at every
 
 **A11 · Counter convention contradicts itself.** §7.2 says the prompt reads `8 words ▸` after 7
 commits; transcript (c) shows `7 words ·`. → **Committed-count everywhere** (`7 words ▸`,
-`7 words · Enter decrypts — keep typing if the phrase was longer`).
+`7 words · Enter submits — keep typing if the phrase was longer`).
 
 **A12 · Enter and Tab rows need rewording.** Enter's "commit; then if ≥ 7 and buf empty → decrypt"
 reads as commit+submit in one keystroke — clashing with the doc's own "commit is always a deliberate

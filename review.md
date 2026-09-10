@@ -252,7 +252,7 @@ Finding 9 task ledger:
 - [x] 9.2 Add bounded paging/scrolling to the interactive viewer.
 - [x] 9.3 Make interactive phrase parsing use the canonical 7–64-word ASCII-whitespace grammar.
 - [x] 9.4 Bound bracketed-paste and plain prompt-line memory.
-- [ ] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
+- [x] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
 - [ ] 9.6 Remove the inert `--quiet` surface.
 - [ ] 9.7 Remove the unused seeded-retry subsystem.
 - [ ] 9.8 Correct completion grammar and unsupported flag suggestions.

@@ -55,7 +55,7 @@ func TestPlainSessionTranscript(t *testing.T) {
 		"word 5 accepted: riverboat\n" +
 		"word 6 accepted: tulip\n" +
 		"word 7 accepted: wolverine\n" +
-		"7 words — an empty line decrypts; keep typing if the phrase was longer\n" +
+		"7 words — an empty line submits; keep typing if the phrase was longer\n" +
 		"7 words: "
 	if transcript != want {
 		t.Fatalf("transcript:\n%q\nwant:\n%q", transcript, want)
@@ -134,7 +134,7 @@ func TestPlainSeededEchoAndResubmit(t *testing.T) {
 	}
 	want := plainIntro +
 		"7 words kept: acrobat cufflink dresser osmosis riverboat tulip wolverine\n" +
-		"7 words — an empty line decrypts; keep typing if the phrase was longer\n" +
+		"7 words — an empty line submits; keep typing if the phrase was longer\n" +
 		"7 words: "
 	if transcript != want {
 		t.Fatalf("transcript:\n%q\nwant:\n%q", transcript, want)
