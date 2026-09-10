@@ -3,6 +3,7 @@ package term
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -20,8 +21,11 @@ import (
 func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.Buffer, error) {
 	br := bufio.NewReader(r)
 	return readPhrasePlainLines(w, min, seed, func() ([]byte, error) {
-		line, err := readLine(br)
+		line, err := readLine(br, wordlist.MaxPhraseBytes)
 		if err != nil {
+			if errors.Is(err, ErrInputTooLong) {
+				return nil, err
+			}
 			return nil, ErrInterrupted
 		}
 		return line, nil
@@ -30,7 +34,7 @@ func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.
 
 func readPhrasePlainContext(ctx context.Context, t *TTY, min int, seed []string) (*secret.Buffer, error) {
 	return readPhrasePlainLines(t.out, min, seed, func() ([]byte, error) {
-		return t.readLineContext(ctx)
+		return t.readLineContext(ctx, wordlist.MaxPhraseBytes)
 	})
 }
 
@@ -51,6 +55,10 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 		fmt.Fprint(w, plainLabel(len(committed), min))
 		line, err := nextLine()
 		if err != nil {
+			if errors.Is(err, ErrInputTooLong) {
+				fmt.Fprintln(w, "input rejected: passphrase line is too long")
+				continue
+			}
 			return nil, err
 		}
 		switch {
@@ -62,6 +70,7 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 			continue
 		}
 		tokens, issue := parseInteractiveWords(line, committed)
+		secret.Wipe(line)
 		if issue != interactiveWordsOK {
 			fmt.Fprintln(w, interactiveWordsMessage(issue))
 			continue
@@ -88,18 +97,47 @@ func plainLabel(n, min int) string {
 // readLine reads one line as fresh bytes with the terminator removed —
 // exactly one trailing \n and one preceding \r (§11.6 framing). io.EOF with
 // a non-empty final line still yields the line.
-func readLine(br *bufio.Reader) ([]byte, error) {
-	line, err := br.ReadBytes('\n')
-	if err != nil && len(line) == 0 {
-		return nil, err
+func readLine(br *bufio.Reader, limit int) ([]byte, error) {
+	line := make([]byte, 0, limit+1)
+	overflow := false
+	readAny := false
+	finish := func() ([]byte, error) {
+		if overflow {
+			return nil, ErrInputTooLong
+		}
+		if n := len(line); n > 0 && line[n-1] == '\r' {
+			line = line[:n-1]
+		}
+		if len(line) > limit {
+			secret.Wipe(line)
+			return nil, ErrInputTooLong
+		}
+		return line, nil
 	}
-	if n := len(line); n > 0 && line[n-1] == '\n' {
-		line = line[:n-1]
+	for {
+		b, err := br.ReadByte()
+		if err != nil {
+			if err == io.EOF && readAny {
+				return finish()
+			}
+			secret.Wipe(line)
+			return nil, err
+		}
+		readAny = true
+		if b == '\n' {
+			return finish()
+		}
+		if overflow {
+			continue
+		}
+		if len(line) == limit+1 {
+			secret.Wipe(line)
+			line = nil
+			overflow = true
+			continue
+		}
+		line = append(line, b)
 	}
-	if n := len(line); n > 0 && line[n-1] == '\r' {
-		line = line[:n-1]
-	}
-	return line, nil
 }
 
 // joinPhrase builds the canonical phrase bytes from committed list words.

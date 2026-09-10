@@ -90,7 +90,8 @@ caller-supplied phrase must contain 7–64 distinct shared-list words. ASCII whi
 accepted and canonicalized to lowercase words separated by one space. A piped create with a
 generated phrase requires `--json`, ensuring automation receives a complete handoff receipt. A supplied
 phrase must also be unique to that secret: reusing a suite-`0x02` phrase permits a malicious server to
-substitute another valid secret encrypted under the same phrase.
+substitute another valid secret encrypted under the same phrase. Interactive phrase lines are bounded at
+1,024 bytes; oversized lines and pastes are rejected without being echoed and are wiped after rejection.
 
 ### Reveal
 

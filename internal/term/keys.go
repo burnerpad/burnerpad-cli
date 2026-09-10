@@ -26,6 +26,7 @@ const (
 	KindCtrlU
 	KindCtrlO
 	KindPaste
+	KindInputTooLong
 	KindIgnored
 )
 
@@ -45,6 +46,11 @@ const pasteEnd = "\x1b[201~"
 // maxSeqLen bounds an ESC-initiated sequence, ESC included (§7.2: "bounded
 // ≤ 16 bytes"). Anything longer is abandoned as ignored.
 const maxSeqLen = 16
+
+// maxPasteBytes bounds the decoder before any consumer-specific validation.
+// It covers the largest interactive field (a share URL); phrase and token
+// consumers apply their smaller domain limits after decoding.
+const maxPasteBytes = 4096
 
 type decodeState int
 
@@ -69,6 +75,7 @@ type keyDecoder struct {
 	u8need int    // continuation bytes still expected
 	paste  []byte // paste payload collected so far
 	pmatch int    // bytes of pasteEnd currently matched
+	pover  bool   // payload exceeded maxPasteBytes; scan only to its terminator
 	cr     bool   // previous ground byte was CR; suppress its CRLF partner
 }
 
@@ -108,6 +115,7 @@ func (d *keyDecoder) reset() {
 	d.u8need = 0
 	d.paste = nil
 	d.pmatch = 0
+	d.pover = false
 }
 
 // feed consumes one byte and returns zero or more decoded events.
@@ -147,6 +155,7 @@ func (d *keyDecoder) feed(b byte) []Event {
 			d.reset()
 			if isPasteStart {
 				d.st = dPaste
+				d.paste = make([]byte, 0, maxPasteBytes)
 				return nil
 			}
 			// Arrows, Home/End, Delete, F-keys, mouse, stray ESC[201~ —
@@ -160,19 +169,23 @@ func (d *keyDecoder) feed(b byte) []Event {
 			d.pmatch++
 			if d.pmatch == len(pasteEnd) {
 				p := d.paste
+				over := d.pover
 				d.reset()
+				if over {
+					return []Event{{Kind: KindInputTooLong}}
+				}
 				return []Event{{Kind: KindPaste, Paste: p}}
 			}
 			return nil
 		}
 		// The partial terminator match was payload after all (pastes may
 		// contain ESC bytes); replay it, then retry the match at this byte.
-		d.paste = append(d.paste, pasteEnd[:d.pmatch]...)
+		d.appendPaste([]byte(pasteEnd[:d.pmatch]))
 		d.pmatch = 0
 		if b == pasteEnd[0] {
 			d.pmatch = 1
 		} else {
-			d.paste = append(d.paste, b)
+			d.appendPaste([]byte{b})
 		}
 		return nil
 	case dUTF8:
@@ -197,6 +210,19 @@ func (d *keyDecoder) feed(b byte) []Event {
 		return []Event{{Kind: KindRune, R: r}}
 	}
 	return nil
+}
+
+func (d *keyDecoder) appendPaste(p []byte) {
+	if d.pover {
+		return
+	}
+	if len(p) > maxPasteBytes-len(d.paste) {
+		secret.Wipe(d.paste)
+		d.paste = nil
+		d.pover = true
+		return
+	}
+	d.paste = append(d.paste, p...)
 }
 
 func (d *keyDecoder) ground(b byte) []Event {

@@ -38,6 +38,20 @@ func TestInteractiveWordsRejectNonASCIIAndMalformedInput(t *testing.T) {
 	}
 }
 
+func TestInteractiveWordsRejectOversizedPasteBeforeParsing(t *testing.T) {
+	input := []byte(strings.Repeat(" ", wordlist.MaxPhraseBytes+1))
+	if parsed, issue := parseInteractiveWords(input, nil); issue != interactiveWordsTooLong || parsed != nil {
+		t.Fatalf("parsed=%v issue=%v, want too long", parsed, issue)
+	}
+	m := NewMachine(0)
+	m.Handle(rn('t'))
+	m.Handle(rn('u'))
+	out := m.Handle(Event{Kind: KindInputTooLong})
+	if !out.Bell || out.Buf != "tu" || len(out.Committed) != 0 || out.Status != "paste rejected: input is too long" {
+		t.Fatalf("overflow event mutated machine: %+v", out)
+	}
+}
+
 func TestInteractiveWordsEnforceDistinctCombined64WordLimit(t *testing.T) {
 	words := wordlist.Words()
 	first64 := strings.Join(words[:wordlist.MaxPhraseWords], " ")

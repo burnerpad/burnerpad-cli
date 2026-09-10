@@ -2,6 +2,7 @@ package term
 
 import (
 	"bytes"
+	"io"
 	"testing"
 )
 
@@ -66,6 +67,29 @@ func TestViewerWipesPasteEvents(t *testing.T) {
 	for j, b := range payload {
 		if b != 0 {
 			t.Fatalf("viewer paste byte %d not wiped: %q", j, payload)
+		}
+	}
+}
+
+func TestPlainPhraseWipesAcceptedAndRejectedLineBuffers(t *testing.T) {
+	rejected := []byte("distinctive-private-canary")
+	accepted := []byte("acrobat cufflink dresser osmosis riverboat tulip wolverine")
+	lines := [][]byte{rejected, accepted, {}}
+	next := 0
+	phrase, err := readPhrasePlainLines(io.Discard, 7, nil, func() ([]byte, error) {
+		line := lines[next]
+		next++
+		return line, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	phrase.Wipe()
+	for name, line := range map[string][]byte{"rejected": rejected, "accepted": accepted} {
+		for i, b := range line {
+			if b != 0 {
+				t.Fatalf("%s line byte %d was not wiped", name, i)
+			}
 		}
 	}
 }

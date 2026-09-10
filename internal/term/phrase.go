@@ -18,7 +18,10 @@ import (
 
 // ErrInterrupted is returned by the interactive prompts on Ctrl+C (and on
 // EOF at a prompt): the caller maps it to the §9 signal exit.
-var ErrInterrupted = errors.New("interrupted")
+var (
+	ErrInterrupted  = errors.New("interrupted")
+	ErrInputTooLong = errors.New("input too long")
+)
 
 // escTimeout is the inter-byte deadline for ESC-initiated sequences (§7.2):
 // past it a pending sequence is flushed as ignored, so a human's lone ESC is

@@ -130,7 +130,9 @@ It is rejected before encryption/network if empty, invalid UTF-8, or larger than
 Passphrases come only from the controlling-terminal prompt, `--passphrase-file`, or `--passphrase-fd`.
 Management tokens come only from a piped create receipt, controlling-terminal hidden prompt,
 `--token-file`, or `--token-fd`. File `-` is rejected for credentials and descriptors must be at least 3.
-No plaintext, passphrase, or token argv/environment interface exists.
+No plaintext, passphrase, or token argv/environment interface exists. Interactive allocation is bounded at
+the reader: bracketed paste and share-URL lines at 4,096 bytes, phrase lines at 1,024 bytes, and management
+tokens at 256 bytes. An oversized line is wiped and drained before another prompt can consume input.
 
 ## Reveal lifecycle and recovery
 

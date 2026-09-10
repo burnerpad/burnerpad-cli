@@ -1,6 +1,7 @@
 package term
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"strings"
@@ -221,5 +222,36 @@ func TestPlainRejectsWord65Atomically(t *testing.T) {
 	}
 	if !strings.Contains(transcript, "word 1/7: passphrases contain at most 64 words\nword 1/7: ") {
 		t.Fatalf("65-word line was not rejected atomically: %q", transcript)
+	}
+}
+
+func TestPlainRejectsOversizedLineWithoutEchoAndRetries(t *testing.T) {
+	canary := strings.Repeat("canary", wordlist.MaxPhraseBytes)
+	input := canary + "\n" + mintPhrase + "\n\n"
+	phrase, transcript, err := runPlain(t, input, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if phrase != mintPhrase {
+		t.Fatalf("phrase = %q", phrase)
+	}
+	if !strings.Contains(transcript, "input rejected: passphrase line is too long\n") {
+		t.Fatalf("missing overflow rejection: %q", transcript)
+	}
+	if strings.Contains(transcript, canary) {
+		t.Fatal("oversized input was echoed in the transcript")
+	}
+}
+
+func TestBoundedPlainLineReaderDrainsAndHandlesCRLFAtLimit(t *testing.T) {
+	br := bufio.NewReader(strings.NewReader("abcd\nabc\r\nok\n"))
+	if line, err := readLine(br, 3); !errors.Is(err, ErrInputTooLong) || line != nil {
+		t.Fatalf("overflow line=%q err=%v", line, err)
+	}
+	if line, err := readLine(br, 3); err != nil || string(line) != "abc" {
+		t.Fatalf("exact CRLF line=%q err=%v", line, err)
+	}
+	if line, err := readLine(br, 3); err != nil || string(line) != "ok" {
+		t.Fatalf("line after overflow=%q err=%v", line, err)
 	}
 }
