@@ -9,14 +9,16 @@ suite before it receives publication authority.
 
 Before attempting a release:
 
-1. Keep the historical tag-triggered `.github/workflows/release.yml` workflow
-   permanently disabled. It is removed from the default branch, but disabling
-   its GitHub workflow ID is what prevents an old commit from reviving it.
-2. Set the repository's default workflow permission to read-only.
-3. Enable immutable releases and verify that
+1. Set the repository's default workflow permission to read-only and require
+   actions to be referenced by a full commit SHA.
+2. Enable immutable releases and verify that
    `gh api repos/OWNER/REPOSITORY/immutable-releases --jq .enabled` prints
    `true`.
-4. Set `RELEASE_ACTOR_ID` to the numeric ID of the only account authorized to
+3. Protect the default branch with reviewed-pull-request and required-check
+   rules. Protect `v*` tags from update and deletion, but allow creation by the
+   publisher.
+4. Set `RELEASE_ACTOR_ID` only after the preceding controls are verified. Its
+   value is the numeric ID of the only account authorized to
    dispatch a release:
 
    ```sh
@@ -25,14 +27,17 @@ Before attempting a release:
      --repo OWNER/REPOSITORY
    ```
 
-On the current private GitHub Free repository, branch/tag rulesets, protected
-environments, and GitHub Actions build attestations are unavailable. Repository
-dispatch by the account named in `RELEASE_ACTOR_ID` is therefore the release
-authorization boundary; compromise of that account is not mitigated by
-repository controls. The numeric ID remains valid if the repository moves to an
-organization. If the repository becomes public or moves to a plan with stronger
-controls, add reviewed-pull-request protection to the default branch and an
-independent approval environment.
+The canonical repository is public, so branch and tag rulesets are available.
+Repository dispatch by the account named in `RELEASE_ACTOR_ID` remains the
+release-authorization boundary. The numeric ID remains valid if the repository
+moves to an organization. Add an approval environment only when a second,
+independent maintainer can review a release; self-approval adds no security and
+preventing self-review would deadlock a one-maintainer repository.
+
+Public repositories can also issue GitHub Actions artifact attestations. This
+pipeline intentionally uses one keyless Cosign bundle over `SHA256SUMS` plus the
+immutable release attestation instead of adding a redundant third provenance
+mechanism. Change that decision and the documented trust procedure together.
 
 The publisher creates the tag itself at the authorized default-branch tip.
 GoReleaser builds a draft, all assets and the keyless Cosign checksum bundle are

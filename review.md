@@ -1,7 +1,8 @@
 # Burnerpad CLI deep review
 
-Date: 2026-09-10  
-Reviewed commit: `e8edfba6e345be9a314b2c298763f7cdb2d50086`  
+Date: 2026-09-10
+Original reviewed snapshot: `e8edfba6e345be9a314b2c298763f7cdb2d50086`
+Canonical public-repository baseline: `1219efe5f356077cef33c770c00ac9cd022af1a5`
 Status: open; work through findings in priority order
 
 ## Verdict
@@ -12,7 +13,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 |---|---|
 | Cryptographic core | Strong |
 | Network boundary | Mostly strong |
-| Release security | Critical flaw |
+| Release security | Hardened implementation; canonical repository activated |
 | Destructive-operation safety | Several high-risk gaps |
 | Minimality | Dependency-minimal, not code-minimal |
 | Completeness | Happy paths exist; documented guarantees are incomplete |
@@ -69,13 +70,17 @@ Remediation applied 2026-09-10:
 - Build metadata is frozen, allowlisted, passed as data rather than generated
   shell source, and covered by adversarial legal-Git-tag and Make expansion
   tests.
-- The historical remote workflow ID `338051348` is disabled, default workflow
-  permissions are read-only, immutable releases are enabled, and
-  `RELEASE_ACTOR_ID=1019893` is set on the repository. Private GitHub Free does
-  not offer tag rulesets or protected environments; the default-branch
-  dispatcher plus disabled historical workflow is the available fail-closed
-  design. The unsupported private-repository build-attestation action was
-  removed; immutable publication itself creates the release attestation.
+- The original private repository's historical workflow was disabled before
+  the project was re-imported into the canonical public
+  `burnerpad/burnerpad-cli` repository. Repository settings do not transfer
+  with `.git`: the canonical repository was therefore audited and activated
+  separately. Its history contains no legacy tag-triggered publisher; default
+  workflow permissions are read-only; immutable releases are enabled; Actions
+  must use full commit SHAs; the default branch and `v*` tags are protected;
+  and `RELEASE_ACTOR_ID=1019893` is authorized only after those controls are
+  verified. The public repository could add another build-attestation action,
+  but intentionally keeps the smaller Cosign-checksum plus immutable-release
+  attestation design.
 
 ### 2. High — decrypted plaintext can execute terminal control sequences
 
@@ -233,10 +238,12 @@ The completed release-path changes were checked with:
 - an actual GoReleaser snapshot whose binary reports the full reviewed commit
   and `2026-09-10T16:26:52Z`, exactly matching the independent rebuild inputs.
 
-The live repository state was re-read after mutation: default workflow
-permissions are read-only, immutable releases are enabled, legacy workflow ID
-`338051348` is disabled, and `RELEASE_ACTOR_ID` is `1019893`. No release or tag
-was created during remediation.
+After the move, the canonical public repository was re-read independently:
+default workflow permissions are read-only, immutable releases are enabled,
+all Actions references are full commit SHAs, the default branch and release
+tags are protected by active rulesets, and `RELEASE_ACTOR_ID` is `1019893`.
+Its history contains no legacy release workflow. No release or tag was created
+during remediation.
 
 ## Recommended order
 

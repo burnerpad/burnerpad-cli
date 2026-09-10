@@ -48,14 +48,15 @@ pins the release to the dispatched commit:
 
 ```sh
 cosign verify-blob --bundle SHA256SUMS.bundle \
-  --certificate-identity 'https://github.com/Cinderella-Man/burnerpad-cli/.github/workflows/publish-release.yml@refs/heads/main' \
+  --certificate-identity 'https://github.com/burnerpad/burnerpad-cli/.github/workflows/publish-release.yml@refs/heads/main' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
-That exact repository/workflow identity is a release trust root. Change it in
-the repository-transfer commit before publishing from a different owner.
+That exact repository/workflow identity is a release trust root. It must be
+changed in the repository-transfer commit before publishing from another
+owner.
 
 CI gates the current suite-`0x02` vectors and real browser/CLI interoperability against a reviewed
 burnerpad-lite revision. A scheduled run tests the same matrix against Lite `main` to expose drift early.
