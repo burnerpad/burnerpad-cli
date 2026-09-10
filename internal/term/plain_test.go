@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
 // runPlain drives readPhrasePlain over an injected reader/writer and returns
@@ -29,9 +31,8 @@ func runPlainSeeded(t *testing.T, input string, min int, seed []string) (string,
 const plainIntro = "Passphrase — one word per line, or the whole phrase on one line.\n" +
 	"An empty line submits once at least 7 words are entered; every word must be on the list.\n"
 
-// The §7.6 scripted session: word-per-line entry, a misheard word with the
-// closest-list-word (Levenshtein) suggestion, a multi-word line, the gate,
-// and the empty-line submit.
+// The §7.6 scripted session: word-per-line entry, a rejected word, a
+// multi-word line, the gate, and the empty-line submit.
 func TestPlainSessionTranscript(t *testing.T) {
 	input := strings.Join([]string{
 		"acrobat",
@@ -46,7 +47,7 @@ func TestPlainSessionTranscript(t *testing.T) {
 	}
 	want := plainIntro +
 		"word 1/7: word 1 accepted: acrobat\n" +
-		"word 2/7: \"osmoss\" is not on the word list — closest: osmosis\n" +
+		"word 2/7: a word is not on the Burnerpad word list\n" +
 		"word 2/7: word 2 accepted: osmosis\n" +
 		"word 3/7: word 3 accepted: cufflink\n" +
 		"word 4 accepted: dresser\n" +
@@ -85,11 +86,8 @@ func TestPlainMultiWordLineAtomic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(transcript, "\"zzznotaword\" is not on the word list\n") {
+	if !strings.Contains(transcript, "a word is not on the Burnerpad word list\n") {
 		t.Fatalf("missing rejection: %q", transcript)
-	}
-	if strings.Contains(transcript, "\"zzznotaword\" is not on the word list — closest") {
-		t.Fatalf("far-off token must not get a suggestion: %q", transcript)
 	}
 	if phrase != "acrobat cufflink dresser osmosis riverboat tulip wolverine" {
 		t.Fatalf("phrase = %q", phrase)
@@ -102,7 +100,7 @@ func TestPlainDuplicateRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(transcript, "duplicate word \"acrobat\"\n") {
+	if !strings.Contains(transcript, "a word is repeated\n") {
 		t.Fatalf("missing duplicate rejection: %q", transcript)
 	}
 	if phrase != "acrobat cufflink dresser osmosis riverboat tulip wolverine zebra" {
@@ -153,7 +151,7 @@ func TestPlainSeededKeepsAccumulating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(transcript, "duplicate word \"acrobat\"\n") {
+	if !strings.Contains(transcript, "a word is repeated\n") {
 		t.Fatalf("kept word not counted for duplicates: %q", transcript)
 	}
 	if !strings.Contains(transcript, "word 8 accepted: zebra\n") {
@@ -210,38 +208,18 @@ func TestPlainCustomMin(t *testing.T) {
 	}
 }
 
-// The closest-word helper itself: the doc's example and the tie/threshold
-// behavior (B24: metric is plain Levenshtein).
-func TestClosestWord(t *testing.T) {
-	words := []string{"acrobat", "osmosis", "tulip"}
-	if w, d := closestWord(words, "osmoss"); w != "osmosis" || d != 1 {
-		t.Fatalf("closest(osmoss) = %q,%d", w, d)
+func TestPlainRejectsWord65Atomically(t *testing.T) {
+	words := wordlist.Words()
+	first64 := strings.Join(words[:wordlist.MaxPhraseWords], " ")
+	input := strings.Join(words[:wordlist.MaxPhraseWords+1], " ") + "\n" + first64 + "\n\n"
+	phrase, transcript, err := runPlain(t, input, 7)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if w, d := closestWord(words, "tulip"); w != "tulip" || d != 0 {
-		t.Fatalf("closest(tulip) = %q,%d", w, d)
+	if phrase != first64 {
+		t.Fatalf("phrase after rejected 65-word line = %q", phrase)
 	}
-	if _, d := closestWord(words, "qqqqqqqq"); d <= suggestMaxDist {
-		t.Fatalf("garbage token unexpectedly close: %d", d)
-	}
-}
-
-func TestLevenshtein(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want int
-	}{
-		{"", "", 0},
-		{"", "abc", 3},
-		{"kitten", "sitting", 3},
-		{"osmoss", "osmosis", 1},
-		// plain Levenshtein, not Damerau: the transposition-ish pair sits at
-		// 3 here (§13 asserts the list's plain-Levenshtein floor is 3).
-		{"apnea", "arena", 3},
-		{"flaw", "lawn", 2},
-	}
-	for _, c := range cases {
-		if got := levenshtein(c.a, c.b); got != c.want {
-			t.Fatalf("levenshtein(%q,%q) = %d, want %d", c.a, c.b, got, c.want)
-		}
+	if !strings.Contains(transcript, "word 1/7: passphrases contain at most 64 words\nword 1/7: ") {
+		t.Fatalf("65-word line was not rejected atomically: %q", transcript)
 	}
 }

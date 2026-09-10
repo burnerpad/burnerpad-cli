@@ -9,7 +9,8 @@ derived from the immutable release tag and never hardcoded in source.
 
 - First public command-line release targeting the current burnerpad-lite product contract.
 - Browser-compatible suite-`0x02` create, reveal, revoke, and offline recovery workflows.
-- Seven-word cryptographically random phrase generation and one canonical 7-64-word shared-list parser.
+- Seven-word cryptographically random phrase generation and one canonical 7-64-word shared-list grammar
+  across interactive, file, and descriptor input.
 - Protected passphrase and management-token input through controlling-terminal prompts, named files, and
   descriptors 3 or greater; no secret-bearing argv or environment interfaces.
 - Visible burnerpad.io default with configurable self-hosted origins and operation-authoritative URL origins.

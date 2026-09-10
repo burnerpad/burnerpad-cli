@@ -3,7 +3,6 @@ package term
 import (
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
@@ -66,7 +65,7 @@ const seedStatus = "(your words are kept; Backspace steps into them)"
 // list-locked entry could itself have produced: at least min words, each on
 // the list, all distinct. Anything else is not a §7.3 retained state.
 func seedable(words, seed []string, min int) bool {
-	if len(seed) < min {
+	if len(seed) < min || len(seed) > wordlist.MaxPhraseWords {
 		return false
 	}
 	seen := make(map[string]bool, len(seed))
@@ -134,6 +133,9 @@ func SeedWords(phrase []byte, min int) []string {
 			return nil
 		}
 		starts, ends = append(starts, start), append(ends, i)
+		if len(starts) > wordlist.MaxPhraseWords {
+			return nil
+		}
 		start = i + 1
 	}
 	if len(starts) < min {
@@ -294,13 +296,16 @@ func (m *Machine) needMoreStatus() string {
 
 // commit appends w, clears buf, and returns the post-commit status
 // (committed-count form, A11).
-func (m *Machine) commit(w string) string {
+func (m *Machine) commit(w string) (bool, string) {
+	if len(m.committed) >= wordlist.MaxPhraseWords {
+		return true, interactiveWordsMessage(interactiveWordsTooMany)
+	}
 	m.committed = append(m.committed, w)
 	m.buf = m.buf[:0]
 	if n := len(m.committed); n >= m.minWords {
-		return fmt.Sprintf("%d words · %s", n, decryptHint)
+		return false, fmt.Sprintf("%d words · %s", n, decryptHint)
 	}
-	return ""
+	return false, ""
 }
 
 // --- event handling ------------------------------------------------------
@@ -360,7 +365,9 @@ func (m *Machine) onRune(r rune) (bool, string) {
 	if r < ' ' || r == 0x7f {
 		return false, "" // control bytes never reach the buffer
 	}
-	r = unicode.ToLower(r) // "Uppercase is lowercased silently"
+	if r >= 'A' && r <= 'Z' {
+		r += 'a' - 'A' // ASCII uppercase is lowercased silently
+	}
 	// A9: accept any printable rune iff ≥ 1 candidate would remain. The list
 	// charset is [a-z-], so digits/foreign punctuation still always reject —
 	// and '-' is typeable exactly where the list needs it (yo-yo).
@@ -384,7 +391,7 @@ func (m *Machine) onSpace() (bool, string) {
 	}
 	p := string(m.buf)
 	if m.candCount(p) == 1 {
-		return false, m.commit(m.firstCandidates(p, 1)[0])
+		return m.commit(m.firstCandidates(p, 1)[0])
 	}
 	return true, m.ambiguousStatus()
 }
@@ -400,7 +407,7 @@ func (m *Machine) onTab() (bool, string) {
 	// no auto-commit (ADR-0012): the ghost has shown the whole word first,
 	// and Tab is as deliberate a keystroke as Space.
 	if m.candCount(p) == 1 {
-		return false, m.commit(m.firstCandidates(p, 1)[0])
+		return m.commit(m.firstCandidates(p, 1)[0])
 	}
 	// Ambiguous: A12's "extends buf to the longest common prefix". The LCP is
 	// a prefix of every candidate, so this branch never changes the candidate
@@ -419,7 +426,10 @@ func (m *Machine) onEnter() (bool, string) {
 		if m.candCount(p) != 1 {
 			return true, m.ambiguousStatus() // "Ambiguous buf → bell"
 		}
-		status := m.commit(m.firstCandidates(p, 1)[0])
+		bell, status := m.commit(m.firstCandidates(p, 1)[0])
+		if bell {
+			return true, status
+		}
 		if len(m.committed) < m.minWords {
 			status = m.needMoreStatus()
 		}
@@ -453,32 +463,21 @@ func (m *Machine) onCtrlO() (bool, string) {
 }
 
 // onPaste implements the atomic whole-phrase rule (§7.2 paste row, B24):
-// lowercase, split on whitespace runs, every token ∈ list ∧ distinct ∧ not
+// ASCII-lowercase, split on ASCII whitespace runs, every token ∈ list ∧ distinct ∧ not
 // already committed; all-or-nothing; a partial buf is left untouched; paste
 // never submits.
 func (m *Machine) onPaste(text []byte) (bool, string) {
-	tokens := strings.Fields(strings.ToLower(string(text)))
+	tokens, issue := parseInteractiveWords(text, m.committed)
+	if issue != interactiveWordsOK {
+		return true, "paste rejected: " + interactiveWordsMessage(issue)
+	}
 	if len(tokens) == 0 {
 		return false, ""
-	}
-	seen := make(map[string]bool, len(m.committed)+len(tokens))
-	for _, w := range m.committed {
-		seen[w] = true
-	}
-	for _, tok := range tokens {
-		if !inList(m.words, tok) {
-			// "status names the first bad token"
-			return true, fmt.Sprintf("paste rejected: %q is not on the word list", tok)
-		}
-		if seen[tok] {
-			return true, fmt.Sprintf("paste rejected: duplicate word %q", tok)
-		}
-		seen[tok] = true
 	}
 	keep := m.buf // B24: paste leaves a partial buf untouched (commit clears it)
 	var status string
 	for _, tok := range tokens {
-		status = m.commit(tok)
+		_, status = m.commit(tok)
 	}
 	m.buf = keep
 	return false, status
