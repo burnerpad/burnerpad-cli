@@ -136,7 +136,10 @@ written by `--keep-blob`. Offline decrypt never constructs an HTTP client.
 Without a destination option, reveal/decrypt show a terminal-safe rendition on TTY stdout, using the
 alternate screen when available and the same renderer in `--plain`/fallback mode. Graphic UTF-8 stays
 readable, LF/CRLF remain line breaks, and other control, format, and non-graphic characters are shown as
-inert Go-style escapes such as `\t`, `\x1b`, and `\u202e`. This display is intentionally not byte-exact.
+inert Go-style escapes such as `\t`, `\x1b`, and `\u202e`. The alternate-screen viewer pages content to
+the current terminal: Space or Enter advances, `b` goes back, and `q` closes. If the terminal is too small
+for a safe page frame, the viewer uses the scrollback fallback instead. This display is intentionally not
+byte-exact.
 Piped stdout and `--out` receive the original authenticated UTF-8 bytes; decoding JSON's `plaintext`
 string reproduces those bytes exactly. `--out` creates a new owner-only file and never overwrites; `--json`
 and `--out` are mutually exclusive. Burnerpad has no built-in clipboard destination because terminal

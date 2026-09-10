@@ -40,7 +40,7 @@ they described a different product.
 - [x] Never overwrite an existing destination.
 - [x] Write opted-in recovery ciphertext immediately after claim and retain it on all later outcomes.
 - [x] Keep wrong-phrase retry local to held ciphertext.
-- [x] Support a terminal-safe alternate/plain viewer, exact piped UTF-8, exclusive file output, and JSON.
+- [x] Support a terminal-safe paged alternate/plain viewer, exact piped UTF-8, exclusive file output, and JSON.
 - [x] Keep unverifiable terminal clipboard delivery outside the built-in destination contract.
 - [x] Keep secrets, paths, raw responses, and ciphertext out of errors.
 

@@ -15,7 +15,7 @@ derived from the immutable release tag and never hardcoded in source.
 - Visible burnerpad.io default with configurable self-hosted origins and operation-authoritative URL origins.
 - Optional whole-second TTL requests with returned effective-TTL and clamp reporting.
 - Owner-only, exclusive plaintext output and claimed-ciphertext recovery files.
-- Alternate-screen plaintext viewer, exact piped UTF-8 output, and fixed JSON output.
+- Bounded, terminal-sized alternate-screen plaintext paging, exact piped UTF-8 output, and fixed JSON output.
 - Frozen exit meanings for input, local I/O, unavailable secrets, passphrase/plaintext failures, definitive
   server rejection, temporary service failures, invalid responses, uncertain mutations, and internal faults.
 - One-attempt mutation transport with explicit create/claim/revoke outcome-unknown reporting.

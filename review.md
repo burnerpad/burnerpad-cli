@@ -249,7 +249,7 @@ The application implements the core create/reveal/burn/decrypt paths, but not ev
 Finding 9 task ledger:
 
 - [x] 9.1 Preserve interruption and local-I/O errors during wrong-phrase retry.
-- [ ] 9.2 Add bounded paging/scrolling to the interactive viewer.
+- [x] 9.2 Add bounded paging/scrolling to the interactive viewer.
 - [ ] 9.3 Make interactive phrase parsing use the canonical 7–64-word ASCII-whitespace grammar.
 - [ ] 9.4 Bound bracketed-paste and plain prompt-line memory.
 - [ ] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
