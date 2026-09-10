@@ -26,7 +26,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 3. Preflight the implicit viewer before destructive reveal.
 - [ ] 4. Make signals mutation-aware and run required cleanup.
 - [ ] 5. Resolve the unverifiable OSC 52 delivery contract.
-- [ ] 6. Correct post-mutation HTTP outcome classification.
+- [x] 6. Correct post-mutation HTTP outcome classification.
 - [ ] 7. Enforce the advertised conformance-vector pin.
 - [x] 8. Repair deterministic release reproduction.
 - [ ] 9. Fix remaining completeness and UX defects.
@@ -144,6 +144,15 @@ Unsupported or size-limited terminals may silently discard or truncate the seque
 After every POST, `internal/api/api.go:224-243` treats most unexpected sub-500 responses as protocol errors rather than outcome unknown. Examples include `201`, `204`, `302`, and operation-inapplicable `400`/`413` statuses.
 
 The mutation may already have occurred, but exit 8 says only “invalid server response”; the documented contract reserves outcome unknown for incomplete or invalid post-send mutation results (`docs/CURRENT_SERVER_ALIGNMENT.md:287-291`). The existing redirect test pins the incorrect classification.
+
+Remediation applied 2026-09-10: mutation status classification is now
+operation-specific and conservative. Only create `400`/`413`, claim/revoke
+`404`, and the shared `429`/`503` statuses establish documented failures.
+Every other final status after transmission returns the operation's outcome-
+unknown error; `200` still requires a complete valid operation-specific body.
+An exhaustive status matrix covers HTTP 100–599 for create, claim, and revoke,
+and the redirect regression now proves one request with an unknown claim
+outcome rather than a protocol-only failure.
 
 ## Release and conformance gaps
 

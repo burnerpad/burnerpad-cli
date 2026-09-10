@@ -221,6 +221,8 @@ func decodeResponse(resp *http.Response, dst any) error {
 	return nil
 }
 
+// classifyStatus trusts only the documented definitive failures for each
+// mutation. Any other final status arrives too late to prove no side effect.
 func classifyStatus(resp *http.Response, operation string) error {
 	defer resp.Body.Close()
 	switch resp.StatusCode {
@@ -228,19 +230,16 @@ func classifyStatus(resp *http.Response, operation string) error {
 		if operation == "claim" || operation == "revoke" {
 			return ErrUnavailable
 		}
-		return ProtocolError{Status: resp.StatusCode}
 	case http.StatusTooManyRequests:
 		return RateLimitedError{RetryAfter: retryAfter(resp)}
 	case http.StatusServiceUnavailable:
 		return TemporaryError{RetryAfter: retryAfter(resp)}
 	case http.StatusBadRequest, http.StatusRequestEntityTooLarge:
-		return RejectedError{Status: resp.StatusCode}
-	default:
-		if resp.StatusCode >= 500 {
-			return OutcomeUnknownError{Operation: operation}
+		if operation == "create" {
+			return RejectedError{Status: resp.StatusCode}
 		}
-		return ProtocolError{Status: resp.StatusCode}
 	}
+	return OutcomeUnknownError{Operation: operation}
 }
 
 func retryAfter(resp *http.Response) *int64 {

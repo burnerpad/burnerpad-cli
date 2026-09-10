@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -109,6 +110,100 @@ func TestCurrentContractUnavailableIsGeneric(t *testing.T) {
 	}
 }
 
+func TestCurrentContractMutationStatusClassification(t *testing.T) {
+	for _, operation := range []string{"create", "claim", "revoke"} {
+		for status := 100; status <= 599; status++ {
+			if status == http.StatusOK {
+				continue // operation-specific success-body validation owns HTTP 200
+			}
+			t.Run(operation+"/"+strconv.Itoa(status), func(t *testing.T) {
+				resp := &http.Response{
+					StatusCode: status,
+					Header:     http.Header{"Retry-After": []string{"17"}},
+					Body:       http.NoBody,
+				}
+				err := classifyStatus(resp, operation)
+				want := "unknown"
+				switch status {
+				case http.StatusNotFound:
+					if operation != "create" {
+						want = "unavailable"
+					}
+				case http.StatusTooManyRequests:
+					want = "rate limited"
+				case http.StatusServiceUnavailable:
+					want = "temporary"
+				case http.StatusBadRequest, http.StatusRequestEntityTooLarge:
+					if operation == "create" {
+						want = "rejected"
+					}
+				}
+				switch want {
+				case "unavailable":
+					if !errors.Is(err, ErrUnavailable) {
+						t.Fatalf("HTTP %d error = %T %v, want unavailable", status, err, err)
+					}
+				case "rate limited":
+					var limited RateLimitedError
+					if !errors.As(err, &limited) || limited.RetryAfter == nil || *limited.RetryAfter != 17 {
+						t.Fatalf("HTTP %d error = %T %v, want rate limit with Retry-After 17", status, err, err)
+					}
+				case "temporary":
+					var temporary TemporaryError
+					if !errors.As(err, &temporary) || temporary.RetryAfter == nil || *temporary.RetryAfter != 17 {
+						t.Fatalf("HTTP %d error = %T %v, want temporary failure with Retry-After 17", status, err, err)
+					}
+				case "rejected":
+					var rejected RejectedError
+					if !errors.As(err, &rejected) || rejected.Status != status {
+						t.Fatalf("HTTP %d error = %T %v, want definitive rejection", status, err, err)
+					}
+				case "unknown":
+					var unknown OutcomeUnknownError
+					if !errors.As(err, &unknown) || unknown.Operation != operation {
+						t.Fatalf("HTTP %d error = %T %v, want %s outcome unknown", status, err, err, operation)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestCurrentContractInvalidSuccessBodiesAreOutcomeUnknown(t *testing.T) {
+	for _, test := range []struct {
+		operation string
+		invoke    func(*Client) error
+	}{
+		{operation: "create", invoke: func(c *Client) error {
+			_, err := c.Create(context.Background(), []byte{2, 1}, nil)
+			return err
+		}},
+		{operation: "claim", invoke: func(c *Client) error {
+			_, err := c.Reveal(context.Background(), testID)
+			return err
+		}},
+		{operation: "revoke", invoke: func(c *Client) error {
+			return c.Burn(context.Background(), testID, testToken)
+		}},
+	} {
+		t.Run(test.operation, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Write([]byte(`{}`))
+			}))
+			defer srv.Close()
+			client, err := New(Config{BaseURL: srv.URL, Timeout: time.Second, UserAgent: "test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = test.invoke(client)
+			var unknown OutcomeUnknownError
+			if !errors.As(err, &unknown) || unknown.Operation != test.operation {
+				t.Fatalf("error = %T %v, want %s outcome unknown", err, err, test.operation)
+			}
+		})
+	}
+}
+
 func TestCurrentContractNeverRetriesTimedOutMutation(t *testing.T) {
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -181,9 +276,9 @@ func TestCurrentContractTransportPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = client.Reveal(context.Background(), testID)
-	var protocol ProtocolError
-	if !errors.As(err, &protocol) {
-		t.Fatalf("redirect error=%T %v", err, err)
+	var unknown OutcomeUnknownError
+	if !errors.As(err, &unknown) || unknown.Operation != "claim" {
+		t.Fatalf("redirect error=%T %v, want claim outcome unknown", err, err)
 	}
 	if requests.Load() != 1 {
 		t.Fatalf("redirect requests=%d", requests.Load())
