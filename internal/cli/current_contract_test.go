@@ -42,6 +42,56 @@ func phraseFile(t *testing.T) string {
 	return p
 }
 
+func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T) {
+	payload := []byte("before\x00\x1b]52;c;YQ==\a\r\nafter\u202e")
+
+	t.Run("piped stdout", func(t *testing.T) {
+		var stdout bytes.Buffer
+		a := &application{env: Env{Stdout: &stdout}}
+		if err := a.deliverPlaintext(&destination{}, "revealed", "https://example.com", payload); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(stdout.Bytes(), payload) {
+			t.Fatalf("stdout = %q, want exact authenticated bytes %q", stdout.Bytes(), payload)
+		}
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		var stdout bytes.Buffer
+		a := &application{env: Env{Stdout: &stdout}, cfg: config{json: true}}
+		if err := a.deliverPlaintext(&destination{}, "revealed", "https://example.com", payload); err != nil {
+			t.Fatal(err)
+		}
+		var got revealResult
+		if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal([]byte(got.Plaintext), payload) {
+			t.Fatalf("decoded plaintext = %q, want exact authenticated bytes %q", got.Plaintext, payload)
+		}
+	})
+
+	t.Run("file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "plaintext")
+		out, err := reserve(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a := &application{env: Env{}}
+		if err := a.deliverPlaintext(&destination{out: out}, "revealed", "https://example.com", payload); err != nil {
+			out.discard()
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, payload) {
+			t.Fatalf("file = %q, want exact authenticated bytes %q", got, payload)
+		}
+	})
+}
+
 func TestCurrentProcessCreateAndRevealInterop(t *testing.T) {
 	var stored string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

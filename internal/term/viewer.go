@@ -3,6 +3,7 @@ package term
 import (
 	"io"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
 )
@@ -14,10 +15,11 @@ type ViewerOpts struct {
 	ByteCount int // header count; 0 means len(plaintext)
 }
 
-// ShowViewer displays plaintext per §8.1: on the alternate screen (same
-// buffer discipline as less) with q closing so zero secret bytes reach
-// scrollback, or — NoAlt — a plain print preceded by the scrollback note.
-// Ctrl+C also closes cleanly; process exit is the caller's job (A8).
+// ShowViewer displays a terminal-safe rendition of plaintext per §8.1: on the
+// alternate screen (same buffer discipline as less) to limit primary-scrollback
+// exposure, or — NoAlt — a plain print preceded by the scrollback note. Control
+// and format characters are visibly escaped. Ctrl+C also closes cleanly;
+// process exit is the caller's job (A8).
 func ShowViewer(t *TTY, plaintext []byte, o ViewerOpts) error {
 	if o.NoAlt {
 		return showViewer(t.Out(), nil, plaintext, o)
@@ -38,14 +40,14 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 	if n == 0 {
 		n = len(plaintext)
 	}
-	header := groupDigits(n) + " bytes · q closes (nothing enters scrollback)"
+	header := groupDigits(n) + " bytes · controls escaped · q closes"
 
 	if o.NoAlt {
 		// §8.1: the honest path when no alternate screen exists.
-		if _, err := io.WriteString(w, "note: plaintext is entering terminal scrollback\n"); err != nil {
+		if _, err := io.WriteString(w, "note: plaintext is entering terminal scrollback; controls are escaped\n"); err != nil {
 			return err
 		}
-		if _, err := w.Write(plaintext); err != nil {
+		if err := writeViewerBody(w, plaintext, "\n"); err != nil {
 			return err
 		}
 		if len(plaintext) > 0 && plaintext[len(plaintext)-1] != '\n' {
@@ -68,10 +70,9 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 			return err
 		}
 	}
-	// Body content is written without reflow; raw mode has no output
-	// post-processing, so bare LF must become CRLF on the wire or lines
-	// stair-step. That is line-ending transport, not reformatting.
-	if err := writeBodyCRLF(w, plaintext); err != nil {
+	// Raw mode has no output post-processing, so logical line breaks must
+	// become CRLF on the wire or lines stair-step.
+	if err := writeViewerBody(w, plaintext, "\r\n"); err != nil {
 		return err
 	}
 
@@ -92,27 +93,61 @@ func showViewer(w io.Writer, next func() (Event, error), plaintext []byte, o Vie
 	return nil
 }
 
-// writeBodyCRLF writes b translating bare LF to CRLF (raw-mode display);
-// existing CRLF pairs pass through untouched.
-func writeBodyCRLF(w io.Writer, b []byte) error {
-	start := 0
-	for i := 0; i < len(b); i++ {
-		if b[i] != '\n' {
+// writeViewerBody renders untrusted bytes without emitting terminal controls.
+// Graphic UTF-8 passes through, LF and CRLF become the caller's trusted line
+// ending, and everything else becomes an ASCII Go-style escape.
+func writeViewerBody(w io.Writer, b []byte, newline string) error {
+	var escapeBuf [12]byte
+	for len(b) > 0 {
+		graphicBytes := 0
+		for graphicBytes < len(b) {
+			if b[graphicBytes] == '\n' ||
+				(b[graphicBytes] == '\r' && graphicBytes+1 < len(b) && b[graphicBytes+1] == '\n') {
+				break
+			}
+			r, size := utf8.DecodeRune(b[graphicBytes:])
+			if (r == utf8.RuneError && size == 1) || !strconv.IsGraphic(r) {
+				break
+			}
+			graphicBytes += size
+		}
+		if graphicBytes > 0 {
+			if _, err := w.Write(b[:graphicBytes]); err != nil {
+				return err
+			}
+			b = b[graphicBytes:]
 			continue
 		}
-		if i > 0 && b[i-1] == '\r' {
+
+		if b[0] == '\n' || (b[0] == '\r' && len(b) > 1 && b[1] == '\n') {
+			consumed := 1
+			if b[0] == '\r' {
+				consumed = 2
+			}
+			if _, err := io.WriteString(w, newline); err != nil {
+				return err
+			}
+			b = b[consumed:]
 			continue
 		}
-		if _, err := w.Write(b[start:i]); err != nil {
-			return err
+		r, size := utf8.DecodeRune(b)
+		if r == utf8.RuneError && size == 1 {
+			const hex = "0123456789abcdef"
+			escapeBuf[0], escapeBuf[1] = '\\', 'x'
+			escapeBuf[2], escapeBuf[3] = hex[b[0]>>4], hex[b[0]&0x0f]
+			if _, err := w.Write(escapeBuf[:4]); err != nil {
+				return err
+			}
+			b = b[1:]
+		} else {
+			quoted := strconv.AppendQuoteRuneToGraphic(escapeBuf[:0], r)
+			if _, err := w.Write(quoted[1 : len(quoted)-1]); err != nil {
+				return err
+			}
+			b = b[size:]
 		}
-		if _, err := io.WriteString(w, "\r\n"); err != nil {
-			return err
-		}
-		start = i + 1
 	}
-	_, err := w.Write(b[start:])
-	return err
+	return nil
 }
 
 // groupDigits renders n with thousands separators (§8.1: "3,214 bytes").

@@ -39,7 +39,7 @@ they described a different product.
 - [x] Never overwrite an existing destination.
 - [x] Write opted-in recovery ciphertext immediately after claim and retain it on all later outcomes.
 - [x] Keep wrong-phrase retry local to held ciphertext.
-- [x] Support alternate-screen viewer, exact piped UTF-8, exclusive file output, JSON, and OSC 52.
+- [x] Support a terminal-safe alternate/plain viewer, exact piped UTF-8, exclusive file output, JSON, and OSC 52.
 - [x] Make `--json`, `--out`, and `--clip` mutually exclusive.
 - [x] Keep secrets, paths, raw responses, and ciphertext out of errors.
 

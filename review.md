@@ -22,7 +22,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 ## Remediation tracker
 
 - [x] 1. Prevent release-protection bypass and tag-triggered shell execution.
-- [ ] 2. Render decrypted plaintext safely in interactive terminals.
+- [x] 2. Render decrypted plaintext safely in interactive terminals.
 - [ ] 3. Preflight the implicit viewer before destructive reveal.
 - [ ] 4. Make signals mutation-aware and run required cleanup.
 - [ ] 5. Resolve the unverifiable OSC 52 delivery contract.
@@ -89,6 +89,17 @@ Both terminal modes emit sender-controlled plaintext essentially verbatim (`inte
 A malicious sender can embed OSC 52 clipboard writes, terminal-title changes, deceptive hyperlinks, screen clearing, or an alternate-screen exit sequence. This can also defeat the “nothing enters scrollback” claim.
 
 Interactive display should visibly escape control characters. Exact bytes can remain available through explicit `--out`, JSON, or piped stdout.
+
+Remediation applied 2026-09-10: both alternate-screen and plain/fallback
+terminal modes now share a streaming safe renderer. Graphic UTF-8 and logical
+line breaks remain readable; C0/C1 controls, DEL, Unicode format characters,
+and malformed bytes become inert Go-style escapes. The renderer never creates
+a second full plaintext buffer, and the header retains the original byte
+count. Piped stdout and files retain the original authenticated bytes, decoded
+JSON round-trips them, and OSC 52 requests encode them without claiming terminal
+delivery. Regression tests cover OSC 52, OSC 8, alternate-screen
+exit injection, control/format characters, CR/LF normalization, graphic
+Unicode, and malformed UTF-8 in both viewer modes.
 
 ### 3. High — reveal can consume the secret before discovering that its viewer is unavailable
 
@@ -237,6 +248,10 @@ The completed release-path changes were checked with:
 - all six cross-builds and the size gate; and
 - an actual GoReleaser snapshot whose binary reports the full reviewed commit
   and `2026-09-10T16:26:52Z`, exactly matching the independent rebuild inputs.
+
+Safe terminal rendering was checked with focused adversarial viewer tests in
+both terminal modes plus the full local Go test, race, vet, fuzz, and
+cross-build suites.
 
 After the move, the canonical public repository was re-read independently:
 default workflow permissions are read-only, immutable releases are enabled,

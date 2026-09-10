@@ -14,6 +14,9 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - A wrong phrase is retried locally against held ciphertext and cannot issue another claim.
 - Remote servers require verified HTTPS, loopback alone may use HTTP, and redirects are refused.
 - Passphrases, tokens, and plaintext have no argv/environment interface.
+- Both interactive viewer modes treat plaintext as untrusted display data and visibly escape terminal
+  controls and Unicode format characters. Pipe and file destinations retain the authenticated bytes, and
+  decoded JSON round-trips them; OSC 52 encodes the original bytes but cannot prove terminal delivery.
 - There is no config file, persistent state, telemetry, crash reporter, update check, or compatibility probe.
 - Machine and human errors exclude URLs, IDs, phrases, tokens, blobs, plaintext, response bodies, and paths.
 
@@ -30,7 +33,9 @@ unknown. That is deliberately not converted into a retry or a comforting guess.
 Endpoint malware, keyloggers, compromised terminals, and a compromised live web client defeat end-to-end
 protection. A caller-supplied phrase is only as strong as the caller's selection. Shell history records a
 share URL supplied in argv, so the CLI warns and supports prompt/pipe URL input. Clipboard managers may keep
-history after OSC 52 clearing. Plain terminal mode can place plaintext in scrollback.
+history after OSC 52 clearing. Plain terminal mode can place the safe, escaped rendition in scrollback;
+the alternate screen only reduces primary-scrollback exposure. A compromised terminal, or a caller that
+replays byte-exact pipe, file, decoded-JSON, or clipboard output to a terminal, remains out of scope.
 
 ### Go memory hygiene
 

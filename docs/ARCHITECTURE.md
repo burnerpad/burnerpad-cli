@@ -41,9 +41,11 @@ The exact command set is `create`, `reveal`, `burn`, `decrypt`, `words`, `comple
 and `help`. Dispatch uses an exact switch. There are no aliases and a URL without `reveal` is an invalid
 command.
 
-Global controls are `--server`, `--timeout`, `--json`, `--quiet`, `--plain`, and `--no-color`. The default
-deadline is 12 seconds. `--server` and `BURNERPAD_SERVER` apply only to create and bare-ID burn. The built-in
-server is `https://burnerpad.io`.
+Global controls are `--server`, `--timeout`, `--json`, `--quiet`, `--plain`, and `--no-color`. `--plain`
+changes terminal mechanics, not plaintext safety: it uses the same escaped viewer rendition without raw
+mode, ANSI, or the alternate screen. The default deadline is 12 seconds. `--server` and
+`BURNERPAD_SERVER` apply only to create and bare-ID burn. The built-in server is
+`https://burnerpad.io`.
 
 ## Server selection
 
@@ -135,7 +137,7 @@ Reveal performs fallible local work in this order:
 6. send one claim request;
 7. immediately write an opted-in recovery blob;
 8. decrypt and validate UTF-8 locally; and
-9. deliver plaintext to exactly one destination.
+9. deliver original plaintext to one byte-exact destination or a safe rendition to a terminal.
 
 A valid wrong phrase may be retried locally against the held ciphertext and never triggers another claim.
 `--keep-blob` writes canonical base64url plus one newline and retains it on success or failure. Without it,
@@ -144,9 +146,13 @@ abandoning held ciphertext warns, but neither stderr nor JSON ever receives the 
 ## Plaintext destinations
 
 `--json`, `--out`, and `--clip` are mutually exclusive. With no explicit destination, terminal stdout uses
-the alternate-screen viewer and non-terminal stdout receives exact UTF-8 bytes. `--out` creates mode `0600`
-(or an owner-only Windows DACL), uses exclusive creation, and never overwrites. A reservation made before a
-failed claim is removed only by the invocation that created it.
+one safe renderer in alternate-screen and plain/fallback modes. It preserves graphic UTF-8 and logical line
+breaks while visibly escaping other control, format, and non-graphic characters; sender-controlled terminal
+instructions never reach the TTY. The rendition is intentionally not byte-exact. Non-terminal stdout and
+`--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. OSC 52
+encodes the original bytes without the viewer transformation, but terminal delivery is unverifiable. `--out`
+creates mode `0600` (or an owner-only Windows DACL), uses exclusive creation, and never overwrites. A
+reservation made before a failed claim is removed only by the invocation that created it.
 
 OSC 52 is the only clipboard mechanism. Create copies the link. Reveal/decrypt copy plaintext, remain alive
 for a default 45-second delay, then best-effort clear and warn that clipboard managers can retain history.

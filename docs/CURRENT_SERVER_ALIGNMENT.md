@@ -81,8 +81,8 @@ is an unknown command; claiming always requires `burnerpad reveal`.
   purpose-specific text output and reject an inapplicable `--json`.
 - `--quiet` suppresses decoration, not security warnings, the resolved server, or information required to
   recover a newly created secret.
-- `--plain` keeps the accessible line-oriented prompt; `--no-color` and conventional `NO_COLOR` behavior
-  remain.
+- `--plain` keeps the accessible line-oriented prompt and terminal-safe plaintext renderer while avoiding
+  raw mode, ANSI, and the alternate screen; `--no-color` and conventional `NO_COLOR` behavior remain.
 - `--timeout DURATION` defaults to 12 seconds and must be positive.
 - `--server ORIGIN` and `BURNERPAD_SERVER` configure create and bare-ID burn. The built-in default is
   `https://burnerpad.io`.
@@ -198,13 +198,19 @@ It applies the same suite-`0x02`, passphrase, UTF-8, output, and JSON rules as r
 
 ## 5. Output and machine contract
 
-Human reveal and decrypt use the alternate-screen viewer when stdout is a terminal and exact UTF-8 stdout
-when it is not. `--out FILE` reserves an exclusive mode-`0600` destination and never overwrites an existing
-path; `--force` is removed. Destination setup happens before a network claim. If a reserved output file is no
-longer needed because claim failed, remove only the file created by that invocation.
+Human reveal and decrypt use one terminal-safe renderer whenever stdout is a terminal, with an alternate
+screen when available and the same escaped rendition in plain/fallback mode. Graphic UTF-8 remains readable;
+LF and CRLF become renderer-owned line breaks; other control, format, and non-graphic characters become
+inert visible escapes. The rendition is not a byte-forensic export. Non-terminal stdout and `--out FILE`
+receive exact authenticated UTF-8 bytes; `--out` reserves an exclusive mode-`0600` destination and never
+overwrites an existing path. `--force` is removed. Destination setup happens before a network claim. If a
+reserved output file is no longer needed because claim failed, remove only the file created by that
+invocation.
 
 Reveal and decrypt select exactly one plaintext destination. `--json`, `--out`, and `--clip` are mutually
-exclusive; with none supplied, terminal stdout selects the viewer and non-terminal stdout receives plaintext.
+exclusive; with none supplied, terminal stdout selects the safe viewer and non-terminal stdout receives exact
+plaintext. JSON is byte-exact after decoding its `plaintext` string. The OSC 52 request encodes the original
+bytes without the viewer transformation, but cannot prove terminal acceptance or completeness.
 
 Clipboard uses OSC 52 only. Create copies the link. Reveal and decrypt copy plaintext instead of displaying
 it, default to a 45-second clear delay, remain alive for the countdown, and state that clearing is best-effort
@@ -325,6 +331,7 @@ Primary files: `internal/cli/create.go`, `internal/cli/passphrase.go`, `wordlist
 - Persist an opted-in recovery blob immediately after claim, then perform unlimited local phrase correction
   without another network request.
 - Validate decrypted bytes as UTF-8 and deliver them to exactly one viewer/stdout/file/clipboard/JSON
+  destination. Route both terminal modes through the safe renderer; retain original bytes for every other
   destination. Never include the held blob in an error object or diagnostic.
 - Simplify offline decrypt to suite `0x02`, one base64url blob format, the shared phrase collector, and the same
   plaintext destinations.
@@ -349,7 +356,7 @@ Primary files: `internal/cli/burn.go`, `internal/cli/flags.go`, `internal/cli/ou
 - Replace the old 0–11 exit table with the accepted 0, 2–10, 130, and 143 meanings. Local I/O becomes exit 3;
   internal failure becomes exit 10.
 - Remove IDs, suite labels, base64 plaintext, output paths, response bodies, and recovery blobs from machine
-  output. Ensure JSON contains actual UTF-8 plaintext as a JSON string.
+  output. Ensure decoding JSON's UTF-8 plaintext string reproduces the authenticated bytes exactly.
 - Golden-test every code, field order if promised by documentation, secret-redaction rule, human server line,
   history warning, unknown-outcome message, and quiet-mode exception.
 
@@ -358,7 +365,9 @@ Primary files: `internal/cli/output.go`, `internal/cli/exit.go`, `internal/cli/h
 ### I. Retain and simplify terminal behavior
 
 - Keep the pure autocomplete state machine, terminal restoration, bracketed-paste hygiene, plain-mode
-  accessibility, alternate-screen viewer, OSC 52, tmux passthrough, and best-effort memory wiping.
+  accessibility, shared safe plaintext renderer, alternate-screen viewer, OSC 52, tmux passthrough, and
+  best-effort memory wiping. Test both viewer modes against ESC/OSC/CSI, C0/C1, DEL, bidi/format characters,
+  malformed UTF-8, and LF/CRLF without allowing untrusted terminal controls through.
 - Remove free-form phrase entry, binary detection/output branches, generated-word editing beyond reroll, and
   gestures for adjustable word counts.
 - Extend the same clipboard delivery/countdown path to decrypt and map unsupported destinations to exit 3.
@@ -425,6 +434,8 @@ The implementation is ready to tag only when all of the following are true:
 - Every JSON shape and exit status matches ADR-0028, including unknown outcomes and `retry_after`.
 - Secret-bearing argv/environment inputs are structurally absent, and redaction tests cover every diagnostic.
 - Recovery and plaintext files are exclusive and mode `0600`; existing files are never overwritten.
+- Both terminal modes inertly escape untrusted controls while byte-exact destinations round-trip the
+  authenticated plaintext.
 - The README, man page, help, completions, changelog, architecture, release guide, and executable agree.
 - The `v1.0.0` tag alone supplies the released version, and the release gate produces verified artifacts
   without a follow-up version-bump commit.
