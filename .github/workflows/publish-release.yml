@@ -1,0 +1,280 @@
+# Trusted-default-branch release pipeline. repository_dispatch always loads
+# this workflow and GITHUB_SHA from the default branch, never from a tag.
+name: publish-release
+on:
+  repository_dispatch:
+    types: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  validate-release-request:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.authorize.outputs.tag }}
+      sha: ${{ steps.authorize.outputs.sha }}
+    steps:
+      # This must remain the first step. It uses only runner/event values; no
+      # checkout, action, or repository-controlled code executes first.
+      - id: authorize
+        name: Authorize default-branch release request
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_REF: refs/heads/${{ github.event.repository.default_branch }}
+          AUTHORIZED_ACTOR_ID: ${{ vars.RELEASE_ACTOR_ID }}
+          RELEASE_SHA: ${{ github.event.client_payload.sha }}
+          RELEASE_TAG: ${{ github.event.client_payload.tag }}
+          REQUEST_ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          release_tag_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ "$GITHUB_EVENT_NAME" != repository_dispatch ]]; then
+            echo "release was not requested through repository_dispatch" >&2
+            exit 1
+          fi
+          if [[ -z "$AUTHORIZED_ACTOR_ID" ]] || [[ "$REQUEST_ACTOR_ID" != "$AUTHORIZED_ACTOR_ID" ]]; then
+            echo "release requester is not the configured release actor" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" != "$EXPECTED_REF" ]]; then
+            echo "release workflow is not running from the default branch" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$RELEASE_SHA" != "$GITHUB_SHA" ]]; then
+            echo "release SHA is not the dispatched default-branch commit" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ $release_tag_pattern ]]; then
+            echo "release tag is not canonical SemVer" >&2
+            exit 1
+          fi
+          printf 'tag=%s\nsha=%s\n' "$RELEASE_TAG" "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.authorize.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the checked-out default-branch tip
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_SHA: ${{ steps.authorize.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --verify HEAD)" = "$RELEASE_SHA"
+          test "$(git rev-parse --verify "refs/remotes/origin/$DEFAULT_BRANCH^{commit}")" = "$RELEASE_SHA"
+
+  gate:
+    needs: validate-release-request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release-request.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - run: go vet ./...
+      - run: go test ./... # includes every applicable suite-0x02 vector
+      - run: ./scripts/check-deps.sh
+      - run: make cross && ./scripts/check-size.sh dist/*
+
+  pinned-lite-interop:
+    needs: validate-release-request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release-request.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: lite
+        shell: bash
+        run: echo "revision=$(tr -d '\r\n' < .burnerpad-lite-revision)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: burnerpad/burnerpad-lite
+          ref: ${{ steps.lite.outputs.revision }}
+          path: burnerpad-lite
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          version-file: burnerpad-lite/.tool-versions
+          version-type: strict
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: burnerpad-lite/.tool-versions }
+      - run: mix deps.get
+        working-directory: burnerpad-lite
+      - run: npm ci
+        working-directory: burnerpad-lite/test/browser
+      - name: Browser and Go CLI interoperability
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -o burnerpad ./cmd/burnerpad
+          cp integration/interop.spec.mjs burnerpad-lite/test/browser/cli-interop.spec.mjs
+          server_log="$RUNNER_TEMP/burnerpad-cli-interop.log"
+          (cd burnerpad-lite && PORT=4014 RATE_LIMIT=100000 BAN_THRESHOLD=500000 GLOBAL_CEILING=1000000 MAX_SECRETS=100000 mix run --no-halt) >"$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4014/readyz >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4014/readyz >/dev/null || { sed -n '1,200p' "$server_log" >&2; exit 1; }
+          docker run --init --rm --network host --ipc=host \
+            -e CI=1 \
+            -e BROWSER_TEST_EXTERNAL_SERVER=1 \
+            -e BROWSER_TEST_BASE_URL=http://127.0.0.1:4014 \
+            -e BURNERPAD_BIN=/work/burnerpad \
+            -e PLAYWRIGHT_OUTPUT_DIR=/tmp/test-results \
+            -v "$PWD:/work:ro" -w /work/burnerpad-lite/test/browser \
+            mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e \
+            npx playwright test cli-interop.spec.mjs --project=chromium
+
+  publish-release:
+    needs: [validate-release-request, gate, pinned-lite-interop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # Sigstore keyless signing (OIDC)
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      RELEASE_SHA: ${{ needs.validate-release-request.outputs.sha }}
+      RELEASE_TAG: ${{ needs.validate-release-request.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release-request.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create or verify the exact release tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote_head=$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)
+          if [[ "$remote_head" != "$RELEASE_SHA" ]]; then
+            echo "default branch advanced after release dispatch; request the release again" >&2
+            exit 1
+          fi
+          if ! gh api --silent --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" -f sha="$RELEASE_SHA"; then
+            gh api --silent "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG"
+            remote_tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)
+            if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
+              echo "release tag already exists at a different commit" >&2
+              exit 1
+            fi
+          fi
+          remote_tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)
+          if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
+            echo "release tag does not resolve to the authorized commit" >&2
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            test "$(git rev-parse --verify "$RELEASE_TAG^{commit}")" = "$RELEASE_SHA"
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_SHA"
+          fi
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+      - uses: anchore/sbom-action/download-syft@aa80c8c5bd439a416a62804f2151ab38c671a638 # v0.24.1
+        with:
+          syft-version: v1.51.1
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: v2.18.1
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GORELEASER_CURRENT_TAG: ${{ needs.validate-release-request.outputs.tag }}
+
+      - name: Render and attach the tag-derived installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          scripts/render-installer.sh \
+            install.sh dist/SHA256SUMS dist/install.sh \
+            "$RELEASE_TAG" "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" dist/install.sh --clobber
+
+      - name: Publish and lock the completed draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --silent "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          version=${RELEASE_TAG#v}
+          release_assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+          local_files=$(find dist -type f -printf '%f\n')
+          while IFS= read -r release_asset; do
+            match_count=$(grep -Fxc -- "$release_asset" <<< "$local_files" || true)
+            if [[ -z "$release_asset" ]] || [[ "$match_count" != 1 ]]; then
+              echo "draft release contains unexpected asset: $release_asset" >&2
+              exit 1
+            fi
+          done <<< "$release_assets"
+          for required_asset in \
+            SHA256SUMS SHA256SUMS.bundle install.sh \
+            "burnerpad_${version}_linux_amd64.tar.gz" \
+            "burnerpad_${version}_linux_arm64.tar.gz" \
+            "burnerpad_${version}_darwin_amd64.tar.gz" \
+            "burnerpad_${version}_darwin_arm64.tar.gz" \
+            "burnerpad_${version}_windows_amd64.zip" \
+            "burnerpad_${version}_windows_arm64.zip"; do
+            grep -Fx -- "$required_asset" <<< "$release_assets" >/dev/null || {
+              echo "draft release is missing $required_asset" >&2
+              exit 1
+            }
+          done
+          cosign verify-blob \
+            --bundle dist/SHA256SUMS.bundle \
+            --certificate-identity "https://github.com/$GITHUB_WORKFLOW_REF" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/SHA256SUMS
+          gh release edit "$RELEASE_TAG" --draft=false
+          test "$(gh release view "$RELEASE_TAG" --json isDraft,isImmutable \
+            --jq '.isDraft == false and .isImmutable == true')" = true
+
+      - name: Request independent reproduction
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if gh api --silent --method POST "repos/$GITHUB_REPOSITORY/dispatches" \
+              -f event_type=repro-verify \
+              -f "client_payload[tag]=$RELEASE_TAG" \
+              -f "client_payload[sha]=$RELEASE_SHA"; then
+              exit 0
+            fi
+            [[ "$attempt" = 3 ]] || sleep $((attempt * 5))
+          done
+          echo "could not dispatch reproduction; use the documented manual fallback" >&2
+          exit 1

@@ -1,0 +1,117 @@
+# Main CI: correctness gates on every push/PR (ARCHITECTURE.md §20, §22; TASKS.md T0.4).
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod } # the repo, not the workflow, decides the compiler (§22.3)
+      - name: gofmt
+        run: test -z "$(gofmt -l . | grep -v '^prototype/')"
+      - run: go vet ./...
+      - name: staticcheck
+        run: |
+          # GOBIN-only install so the module's go.mod/go.sum stay untouched (dep freeze).
+          GOBIN=$RUNNER_TEMP/bin go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          $RUNNER_TEMP/bin/staticcheck ./...
+      - name: dependency freeze + import allowlist + decode gate
+        run: ./scripts/check-deps.sh
+
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      # Full suite including every applicable suite-0x02 vector — a red
+      # supported vector cannot merge.
+      - run: go test ./...
+
+  pinned-lite-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: lite
+        name: Read the reviewed burnerpad-lite revision
+        shell: bash
+        run: echo "revision=$(tr -d '\r\n' < .burnerpad-lite-revision)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: burnerpad/burnerpad-lite
+          ref: ${{ steps.lite.outputs.revision }}
+          path: burnerpad-lite
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          version-file: burnerpad-lite/.tool-versions
+          version-type: strict
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: burnerpad-lite/.tool-versions }
+      - run: mix deps.get
+        working-directory: burnerpad-lite
+      - run: npm ci
+        working-directory: burnerpad-lite/test/browser
+      - name: Browser and Go CLI interoperability
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -o burnerpad ./cmd/burnerpad
+          cp integration/interop.spec.mjs burnerpad-lite/test/browser/cli-interop.spec.mjs
+          server_log="$RUNNER_TEMP/burnerpad-cli-interop.log"
+          (cd burnerpad-lite && PORT=4014 RATE_LIMIT=100000 BAN_THRESHOLD=500000 GLOBAL_CEILING=1000000 MAX_SECRETS=100000 mix run --no-halt) >"$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4014/readyz >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4014/readyz >/dev/null || { sed -n '1,200p' "$server_log" >&2; exit 1; }
+          docker run --init --rm --network host --ipc=host \
+            -e CI=1 \
+            -e BROWSER_TEST_EXTERNAL_SERVER=1 \
+            -e BROWSER_TEST_BASE_URL=http://127.0.0.1:4014 \
+            -e BURNERPAD_BIN=/work/burnerpad \
+            -e PLAYWRIGHT_OUTPUT_DIR=/tmp/test-results \
+            -v "$PWD:/work:ro" -w /work/burnerpad-lite/test/browser \
+            mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e \
+            npx playwright test cli-interop.spec.mjs --project=chromium
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - name: bounded fuzz on the attacker-byte parsers (§14.3)
+        run: |
+          go test ./envelope -fuzz FuzzDecodeCanonical -fuzztime 30s
+          go test ./internal/id -fuzz FuzzNormalizeID -fuzztime 20s
+          go test ./internal/id -fuzz FuzzParseShareURL -fuzztime 20s
+
+  cross-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - name: build all six targets with the canonical flags block
+        run: make cross
+      - name: size gate ≤ 9 MiB (§22.2)
+        run: ./scripts/check-size.sh dist/*

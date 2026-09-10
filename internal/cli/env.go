@@ -1,0 +1,80 @@
+// Package cli is the command chassis: flag parsing and dispatch (§4), the
+// stream-discipline printer (§5.1), the single exit table (§9), config
+// resolution (§4.3/§4.5), passphrase-source resolution (§7.5), and the small
+// self-contained commands (words/licenses/version/completion/help). The
+// network and local subcommands live in their own files.
+//
+// Everything user-visible here is specified by docs/ARCHITECTURE.md; fixed
+// strings are golden-tested and part of the compatibility promise.
+package cli
+
+import (
+	"io"
+	"os"
+
+	"github.com/burnerpad/burnerpad-cli/internal/term"
+	xterm "golang.org/x/term"
+)
+
+// Env is the complete process environment as a value: argv, streams,
+// TTY-ness, env lookup, the controlling terminal, signals, and build
+// identity. cli.Run is a pure function of an Env (design invariant 6), which
+// is what makes the whole CLI drivable from tests with no subprocess and no
+// real terminal.
+type Env struct {
+	Args []string // argv WITHOUT the program name
+
+	Stdin          io.Reader
+	Stdout, Stderr io.Writer
+
+	// TTY-ness per stream, decided by term.IsTerminal on the real fds
+	// (§5.1: interactivity is decided only by these, never by env vars).
+	StdinTTY, StdoutTTY, StderrTTY bool
+	// StdinPiped distinguishes a real pipe/redirect from a non-interactive
+	// character device such as /dev/null when checking competing inputs.
+	StdinPiped bool
+
+	// Getenv looks up one environment variable ("" = unset). The complete
+	// variable surface is the §4.5 table; nothing else is ever read.
+	Getenv func(string) string
+
+	// OpenTTY opens the controlling terminal (/dev/tty; CONIN$/CONOUT$ on
+	// Windows) for prompts that must survive stdio redirection.
+	OpenTTY func() (*term.TTY, error)
+
+	// Signals delivers termination signals. nil ⇒ Run installs
+	// signal.Notify(SIGINT, SIGTERM) itself; tests supply their
+	// own channel.
+	Signals <-chan os.Signal
+
+	// Build identity, from -ldflags -X main.* (§22.2). Date is the commit
+	// date, never the build clock (§22.3).
+	Version, Commit, Date string
+}
+
+// OSEnv builds the real-process Env: os.Args/stdio/os.Getenv, TTY-ness via
+// x/term.IsTerminal, the controlling terminal via term.OpenTTY, and nil
+// Signals so Run installs its own handler.
+func OSEnv(version, commit, date string) Env {
+	stdinTTY := xterm.IsTerminal(int(os.Stdin.Fd()))
+	stdinPiped := false
+	if info, err := os.Stdin.Stat(); err == nil {
+		stdinPiped = !stdinTTY && info.Mode()&os.ModeCharDevice == 0
+	}
+	return Env{
+		Args:       os.Args[1:],
+		Stdin:      os.Stdin,
+		Stdout:     os.Stdout,
+		Stderr:     os.Stderr,
+		StdinTTY:   stdinTTY,
+		StdinPiped: stdinPiped,
+		StdoutTTY:  xterm.IsTerminal(int(os.Stdout.Fd())),
+		StderrTTY:  xterm.IsTerminal(int(os.Stderr.Fd())),
+		Getenv:     os.Getenv,
+		OpenTTY:    term.OpenTTY,
+		Signals:    nil,
+		Version:    version,
+		Commit:     commit,
+		Date:       date,
+	}
+}

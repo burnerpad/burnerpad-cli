@@ -1,0 +1,9 @@
+# binaries
+/burnerpad
+/dist/
+*.test
+prototype/diff/godriver
+
+# editor/os
+.DS_Store
+*.swp

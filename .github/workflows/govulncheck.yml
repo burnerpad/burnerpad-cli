@@ -1,0 +1,22 @@
+# Daily govulncheck (ARCHITECTURE.md §27): the crypto IS the stdlib, so a Go
+# stdlib advisory in crypto/net/encoding is this project's security release
+# trigger (≤ 72 h rebuild, §25).
+name: govulncheck
+on:
+  schedule:
+    - cron: "7 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - run: |
+          GOBIN=$RUNNER_TEMP/bin go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          $RUNNER_TEMP/bin/govulncheck ./...

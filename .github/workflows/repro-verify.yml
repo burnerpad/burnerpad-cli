@@ -1,0 +1,146 @@
+# repro-verify (ARCHITECTURE.md §22.3): after every release and weekly, a clean
+# container — deliberately a DIFFERENT environment from the ubuntu release
+# runner — rebuilds all six binaries from the tag and compares binary-to-binary
+# sha256 against the released archives. Mismatch = release incident; immutable
+# releases cannot be silently replaced. SBOMs are excluded (syft embeds
+# UUIDs/timestamps); they are signed instead.
+name: repro-verify
+on:
+  release:
+    types: [published]
+  repository_dispatch:
+    types: [repro-verify]
+  schedule:
+    - cron: "51 7 * * 2"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "tag to verify (defaults to latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    container: golang:1.27.1-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125
+    steps:
+      - name: install tools
+        run: apk add --no-cache git curl tar unzip jq
+      - name: resolve tag
+        id: tag
+        env:
+          API_TOKEN: ${{ github.token }}
+          DISPATCH_SHA: ${{ github.event.client_payload.sha }}
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          MANUAL_TAG: ${{ github.event.inputs.tag }}
+          PUBLISHED_TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -eu
+          export LC_ALL=C
+          TAG=$DISPATCH_TAG
+          [ -n "$TAG" ] || TAG=$MANUAL_TAG
+          [ -n "$TAG" ] || TAG=$PUBLISHED_TAG
+          if [ -z "$TAG" ]; then
+            TAG=$(curl -fsSL \
+              -H "Authorization: Bearer $API_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/releases/latest" | jq -r .tag_name)
+          fi
+          release_tag_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          case "$TAG" in
+            *[!0-9A-Za-z.+-]*) echo "invalid reproduction tag" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$TAG" | grep -Eq "$release_tag_pattern" || {
+            echo "invalid reproduction tag" >&2
+            exit 1
+          }
+          if [ -n "$DISPATCH_SHA" ]; then
+            printf '%s\n' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$' || {
+              echo "invalid reproduction SHA" >&2
+              exit 1
+            }
+          fi
+          printf 'tag=%s\nsha=%s\n' "$TAG" "$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: verify dispatched commit
+        if: ${{ steps.tag.outputs.sha != '' }}
+        env:
+          EXPECTED_SHA: ${{ steps.tag.outputs.sha }}
+        run: test "$(git rev-parse --verify HEAD)" = "$EXPECTED_SHA"
+      - name: rebuild all six targets with the canonical flags
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -eu
+          git config --global --add safe.directory "$PWD"
+          V="$RELEASE_TAG"; V="${V#v}"
+          C=$(git rev-parse --verify HEAD)
+          D=$(TZ=UTC git show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ HEAD)
+          mkdir -p rebuilt
+          for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os=${t%/*}; arch=${t#*/}; out=rebuilt/burnerpad_${os}_${arch}
+            [ "$os" = windows ] && out="$out.exe"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -buildvcs=false \
+              -ldflags "-s -w -buildid= -X main.version=$V -X main.commit=$C -X main.date=$D" \
+              -o "$out" ./cmd/burnerpad
+          done
+      - name: fetch released archives and compare binary-to-binary
+        env:
+          API_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -eu
+          TAG="$RELEASE_TAG"; V="${TAG#v}"
+          mkdir -p released extracted
+          encoded_tag=$(printf '%s' "$TAG" | jq -sRr @uri)
+          release_json=$(curl -fsSL \
+            -H "Authorization: Bearer $API_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPOSITORY/releases/tags/$encoded_tag")
+          download_asset() {
+            asset_name=$1
+            output_path=$2
+            asset_id=$(printf '%s' "$release_json" | jq -er --arg name "$asset_name" \
+              '.assets | map(select(.name == $name)) | select(length == 1) | .[0].id')
+            curl -fsSL \
+              -H "Authorization: Bearer $API_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              -o "$output_path" \
+              "https://api.github.com/repos/$REPOSITORY/releases/assets/$asset_id"
+          }
+          fail=0
+          for t in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            download_asset "burnerpad_${V}_${t}.tar.gz" "released/$t.tar.gz"
+            tar -xzf "released/$t.tar.gz" -C extracted --transform "s/^burnerpad$/burnerpad_$t/" burnerpad
+            os=${t%_*}; arch=${t#*_}
+            a=$(sha256sum "extracted/burnerpad_$t" | cut -d' ' -f1)
+            b=$(sha256sum "rebuilt/burnerpad_${os}_${arch}" | cut -d' ' -f1)
+            if [ "$a" = "$b" ]; then
+              echo "OK  $t $a"
+            else
+              echo "MISMATCH $t released=$a rebuilt=$b"
+              fail=1
+            fi
+          done
+          for t in windows_amd64 windows_arm64; do
+            download_asset "burnerpad_${V}_${t}.zip" "released/$t.zip"
+            unzip -o -q "released/$t.zip" -d "extracted/$t"
+            os=${t%_*}; arch=${t#*_}
+            a=$(sha256sum "extracted/$t/burnerpad.exe" | cut -d' ' -f1)
+            b=$(sha256sum "rebuilt/burnerpad_${os}_${arch}.exe" | cut -d' ' -f1)
+            if [ "$a" = "$b" ]; then
+              echo "OK  $t $a"
+            else
+              echo "MISMATCH $t released=$a rebuilt=$b"
+              fail=1
+            fi
+          done
+          exit "$fail"

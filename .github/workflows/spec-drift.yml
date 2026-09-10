@@ -1,0 +1,30 @@
+# spec-drift (ARCHITECTURE.md §14.1): the vendored SPEC/vectors/wordlist must stay
+# byte-identical to the reviewed upstream revision. Runs on push and weekly so
+# a pin move cannot silently separate the vendored artifacts from its source.
+name: spec-drift
+on:
+  push: { branches: [main] }
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: lite
+        name: Read the reviewed burnerpad-lite revision
+        shell: bash
+        run: echo "revision=$(tr -d '\r\n' < .burnerpad-lite-revision)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: burnerpad/burnerpad-lite
+          ref: ${{ steps.lite.outputs.revision }}
+          path: upstream/burnerpad-lite
+          submodules: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: upstream/burnerpad-lite/.tool-versions }
+      - run: ./scripts/sync-vectors.sh upstream/burnerpad-lite

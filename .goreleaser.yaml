@@ -1,0 +1,72 @@
+# goreleaser v2 — the single release driver (ARCHITECTURE.md §22.4).
+# Flags MUST match the Makefile's canonical block; reproducibility depends on it.
+version: 2
+project_name: burnerpad
+
+builds:
+  - main: ./cmd/burnerpad
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -buildvcs=false]
+    ldflags:
+      - -s -w -buildid=
+      - -X main.version={{ .Version }} -X main.commit={{ .FullCommit }} -X main.date={{ .CommitDate }}
+    # Commit-derived timestamps: a Go binary embeds no clock, packaging must not either (§22.3).
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, NOTICE, README.md]
+
+checksum:
+  name_template: SHA256SUMS
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
+
+signs:
+  # Keyless (Sigstore): the signing identity is the release workflow itself,
+  # bound to the repository and default-branch workflow via OIDC; every
+  # signature lands in Rekor (§23). Signing SHA256SUMS transitively covers each
+  # GoReleaser artifact listed in it; the immutable release attestation binds
+  # the tag, commit, and final asset set.
+  - cmd: cosign
+    signature: "${artifact}.bundle"
+    args: [sign-blob, --yes, --bundle, "${signature}", "${artifact}"]
+    artifacts: checksum
+
+nfpms:
+  - formats: [deb, rpm, apk]
+    package_name: burnerpad
+    vendor: burnerpad
+    homepage: https://burnerpad.io
+    maintainer: burnerpad maintainers <security@burnerpad.io>
+    description: >-
+      End-to-end encrypted one-time secrets from the command line. The CLI
+      encrypts locally; the server stores only ciphertext it cannot read; the
+      first read burns the secret, exactly once.
+    license: Apache-2.0
+    contents:
+      - { src: NOTICE, dst: /usr/share/doc/burnerpad/NOTICE }
+      - { src: LICENSE, dst: /usr/share/doc/burnerpad/LICENSE }
+    mtime: "{{ .CommitDate }}"
+
+# The first release publishes only GitHub Release artifacts. Homebrew, Scoop,
+# AUR, winget, and container publishing are added only after the corresponding
+# org-owned channel exists and can be verified end to end.
+
+release:
+  # Immutable releases cannot accept assets after publication. The workflow
+  # attaches the installer and signatures to this draft, verifies the tag
+  # again, and publishes only as its final release mutation.
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto
+  preflight:
+    fail_on_error: true

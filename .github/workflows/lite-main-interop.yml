@@ -1,0 +1,60 @@
+name: burnerpad-lite main interoperability
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: burnerpad/burnerpad-lite
+          ref: main
+          path: burnerpad-lite
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          version-file: burnerpad-lite/.tool-versions
+          version-type: strict
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: burnerpad-lite/.tool-versions }
+      - run: mix deps.get
+        working-directory: burnerpad-lite
+      - run: npm ci
+        working-directory: burnerpad-lite/test/browser
+      - name: Browser and Go CLI interoperability against Lite main
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -o burnerpad ./cmd/burnerpad
+          cp integration/interop.spec.mjs burnerpad-lite/test/browser/cli-interop.spec.mjs
+          server_log="$RUNNER_TEMP/burnerpad-cli-interop.log"
+          (cd burnerpad-lite && PORT=4014 RATE_LIMIT=100000 BAN_THRESHOLD=500000 GLOBAL_CEILING=1000000 MAX_SECRETS=100000 mix run --no-halt) >"$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4014/readyz >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4014/readyz >/dev/null || { sed -n '1,200p' "$server_log" >&2; exit 1; }
+          docker run --init --rm --network host --ipc=host \
+            -e CI=1 \
+            -e BROWSER_TEST_EXTERNAL_SERVER=1 \
+            -e BROWSER_TEST_BASE_URL=http://127.0.0.1:4014 \
+            -e BURNERPAD_BIN=/work/burnerpad \
+            -e PLAYWRIGHT_OUTPUT_DIR=/tmp/test-results \
+            -v "$PWD:/work:ro" -w /work/burnerpad-lite/test/browser \
+            mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e \
+            npx playwright test cli-interop.spec.mjs --project=chromium
