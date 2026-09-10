@@ -14,9 +14,11 @@ Before attempting a release:
 2. Enable immutable releases and verify that
    `gh api repos/OWNER/REPOSITORY/immutable-releases --jq .enabled` prints
    `true`.
-3. Protect the default branch with reviewed-pull-request and required-check
-   rules. Protect `v*` tags from update and deletion, but allow creation by the
-   publisher.
+3. Protect the default branch with pull-request and required-check rules.
+   While the organization has one maintainer, require zero approvals so that
+   releases are not deadlocked; require at least one approval after adding an
+   independent maintainer. Protect `v*` tags from update and deletion, but
+   allow creation by the publisher.
 4. Set `RELEASE_ACTOR_ID` only after the preceding controls are verified. Its
    value is the numeric ID of the only account authorized to
    dispatch a release:
