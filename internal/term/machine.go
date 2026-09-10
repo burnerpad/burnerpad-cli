@@ -256,7 +256,7 @@ func (m *Machine) ghost() string {
 // ("126 words match", "10 match: academy accountant acetone …"); the
 // exclusion-empty and toggle-hint rules by B24 and the §7.2 Ctrl+O row.
 
-const decryptHint = "Enter decrypts — keep typing if the phrase was longer"
+const submitHint = "Enter submits — keep typing if the phrase was longer"
 
 func (m *Machine) matchStatus() string {
 	if len(m.buf) == 0 {
@@ -303,7 +303,7 @@ func (m *Machine) commit(w string) (bool, string) {
 	m.committed = append(m.committed, w)
 	m.buf = m.buf[:0]
 	if n := len(m.committed); n >= m.minWords {
-		return false, fmt.Sprintf("%d words · %s", n, decryptHint)
+		return false, fmt.Sprintf("%d words · %s", n, submitHint)
 	}
 	return false, ""
 }

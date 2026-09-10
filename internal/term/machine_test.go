@@ -167,7 +167,7 @@ func TestKeyTable(t *testing.T) {
 				append(typeRunes("tul"),
 					step{ev: kd(KindTab), expect: expect{buf: sp(""), committed: []string{"acrobat",
 						"blender", "cufflink", "dishcloth", "eggnog", "fondue", "tulip"},
-						status: sp("7 words · " + decryptHint)}})...),
+						status: sp("7 words · " + submitHint)}})...),
 		},
 		{
 			name: "Tab on empty buf is a no-op",
@@ -341,7 +341,7 @@ func TestKeyTable(t *testing.T) {
 // submit is always a second, deliberate Enter on an empty buf. (The
 // prototype allowed commit+submit in one keystroke; amendment A12 overrode
 // that, and this test pins the amended rule.)
-func TestEnterCommitsSeventhWordThenSecondEnterDecrypts(t *testing.T) {
+func TestEnterCommitsSeventhWordThenSecondEnterSubmits(t *testing.T) {
 	m := NewMachine(0)
 	out := m.Handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
 	if len(out.Committed) != 6 {
@@ -352,7 +352,7 @@ func TestEnterCommitsSeventhWordThenSecondEnterDecrypts(t *testing.T) {
 	if out.Done {
 		t.Fatal("A12: Enter with non-empty buf must commit only, never submit")
 	}
-	if want := "7 words · Enter decrypts — keep typing if the phrase was longer"; out.Status != want {
+	if want := "7 words · Enter submits — keep typing if the phrase was longer"; out.Status != want {
 		t.Fatalf("commit status = %q, want %q", out.Status, want)
 	}
 	out = m.Handle(kd(KindEnter))
@@ -362,6 +362,14 @@ func TestEnterCommitsSeventhWordThenSecondEnterDecrypts(t *testing.T) {
 	want := "acrobat cufflink dresser osmosis riverboat tulip wolverine"
 	if got := string(out.Phrase); got != want {
 		t.Fatalf("phrase = %q, want %q", got, want)
+	}
+}
+
+func TestSubmissionHintIsOperationNeutral(t *testing.T) {
+	for _, command := range []string{"create", "reveal", "decrypt", "burn"} {
+		if strings.Contains(strings.ToLower(submitHint), command) {
+			t.Fatalf("shared submission hint names %q: %q", command, submitHint)
+		}
 	}
 }
 
@@ -380,14 +388,14 @@ func TestEnterGating(t *testing.T) {
 	}
 }
 
-// An 8th word can be committed and Enter still decrypts (phrases longer than
+// An 8th word can be committed and Enter still submits (phrases longer than
 // 7 are legal; only ≥7 is guaranteed).
 func TestEighthWordThenEnter(t *testing.T) {
 	m := NewMachine(0)
 	m.Handle(paste("acrobat cufflink dresser osmosis riverboat tulip wolverine"))
 	runSteps(t, m, typeRunes("zeb"))
 	out := m.Handle(kd(KindSpace))
-	if out.Status != "8 words · Enter decrypts — keep typing if the phrase was longer" {
+	if out.Status != "8 words · Enter submits — keep typing if the phrase was longer" {
 		t.Fatalf("8th commit status = %q", out.Status)
 	}
 	if out.Done {
@@ -408,7 +416,7 @@ func TestCustomMinGate(t *testing.T) {
 		t.Fatalf("at 2/3: done=%v status=%q", out.Done, out.Status)
 	}
 	out = m.Handle(paste("dresser"))
-	if want := "3 words · Enter decrypts — keep typing if the phrase was longer"; out.Status != want {
+	if want := "3 words · Enter submits — keep typing if the phrase was longer"; out.Status != want {
 		t.Fatalf("3rd commit status = %q", out.Status)
 	}
 	out = m.Handle(kd(KindEnter))
@@ -593,7 +601,7 @@ func TestSeededPlusFreshTyping(t *testing.T) {
 		t.Fatal("typing must end the seeded start")
 	}
 	out := m.Handle(kd(KindSpace))
-	if len(out.Committed) != 8 || out.Status != "8 words · Enter decrypts — keep typing if the phrase was longer" {
+	if len(out.Committed) != 8 || out.Status != "8 words · Enter submits — keep typing if the phrase was longer" {
 		t.Fatalf("8th commit: committed=%v status=%q", out.Committed, out.Status)
 	}
 	out = m.Handle(kd(KindEnter))

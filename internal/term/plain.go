@@ -49,7 +49,7 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 		// un-commit gesture, so the seed line names every word out loud.
 		committed = append(committed, seed...)
 		fmt.Fprintf(w, "%d words kept: %s\n", len(committed), strings.Join(committed, " "))
-		fmt.Fprintf(w, "%d words — an empty line decrypts; keep typing if the phrase was longer\n", len(committed))
+		fmt.Fprintf(w, "%d words — an empty line submits; keep typing if the phrase was longer\n", len(committed))
 	}
 	for {
 		fmt.Fprint(w, plainLabel(len(committed), min))
@@ -80,7 +80,7 @@ func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() (
 			fmt.Fprintf(w, "word %d accepted: %s\n", len(committed), tok)
 		}
 		if len(committed) >= min {
-			fmt.Fprintf(w, "%d words — an empty line decrypts; keep typing if the phrase was longer\n", len(committed))
+			fmt.Fprintf(w, "%d words — an empty line submits; keep typing if the phrase was longer\n", len(committed))
 		}
 	}
 }

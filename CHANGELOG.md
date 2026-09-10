@@ -25,6 +25,11 @@ derived from the immutable release tag and never hardcoded in source.
 - Tag-derived release identity and a release-rendered checksum-pinned installer, with no version constant or
   post-release version-bump commit.
 
+### Changed
+
+- Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a
+  decrypt operation during `create --ask`.
+
 ### Security
 
 - Remote origins require verified HTTPS; plaintext HTTP is loopback-only; redirects are refused.
