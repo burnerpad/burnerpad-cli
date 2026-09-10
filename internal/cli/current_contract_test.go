@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
+	"github.com/burnerpad/burnerpad-cli/internal/term"
 )
 
 type failingWriter struct{}
@@ -339,6 +340,87 @@ func TestCurrentProcessDestinationPreflightPreventsClaim(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(existing); string(got) != "keep" {
 		t.Fatalf("existing output changed: %q", got)
+	}
+}
+
+func TestCurrentProcessViewerPreflightPreventsClaim(t *testing.T) {
+	for _, plain := range []bool{false, true} {
+		name := "alternate"
+		if plain {
+			name = "plain"
+		}
+		t.Run(name, func(t *testing.T) {
+			var requests, opens atomic.Int32
+			blob := envelope.EncryptPassphrase([]byte(contractPhrase), []byte("claimed plaintext"))
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Write([]byte(`{"blob":"` + string(envelope.EncodeToBytes(blob)) + `"}`))
+			}))
+			defer srv.Close()
+
+			args := []string{"reveal", "--passphrase-file", phraseFile(t), srv.URL + "/s/" + contractID}
+			if plain {
+				args = append(args, "--plain")
+			}
+			e, _, stderr := contractEnv(args, "")
+			e.StdoutTTY = true
+			e.OpenTTY = func() (*term.TTY, error) {
+				opens.Add(1)
+				return nil, io.ErrClosedPipe
+			}
+			if code := Run(e); code != 3 {
+				t.Fatalf("exit=%d stderr=%s", code, stderr)
+			}
+			if requests.Load() != 0 {
+				t.Fatalf("viewer preflight sent %d destructive requests", requests.Load())
+			}
+			if opens.Load() != 1 {
+				t.Fatalf("terminal opens=%d, want 1", opens.Load())
+			}
+		})
+	}
+}
+
+func TestPrepareDestinationCachesImplicitViewerTerminal(t *testing.T) {
+	fakeTTY := new(term.TTY)
+	var opens atomic.Int32
+	openTTY := func() (*term.TTY, error) {
+		opens.Add(1)
+		return fakeTTY, nil
+	}
+
+	a := &application{env: Env{StdoutTTY: true, OpenTTY: openTTY}}
+	_, err := a.prepareDestination("", clipFlag{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := a.terminal(); err != nil || got != fakeTTY || opens.Load() != 1 {
+		t.Fatalf("cached terminal = %p, err=%v, opens=%d", got, err, opens.Load())
+	}
+
+	for _, test := range []struct {
+		name      string
+		configure func(*application) string
+	}{
+		{name: "JSON", configure: func(a *application) string { a.cfg.json = true; return "" }},
+		{name: "file", configure: func(*application) string { return filepath.Join(t.TempDir(), "out") }},
+		{name: "piped stdout", configure: func(a *application) string { a.env.StdoutTTY = false; return "" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			opens.Store(0)
+			a := &application{env: Env{StdoutTTY: true, OpenTTY: openTTY}}
+			path := test.configure(a)
+			d, err := a.prepareDestination(path, clipFlag{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.out != nil {
+				defer d.out.discard()
+			}
+			if opens.Load() != 0 {
+				t.Fatalf("explicit destination opened the terminal %d times", opens.Load())
+			}
+		})
 	}
 }
 

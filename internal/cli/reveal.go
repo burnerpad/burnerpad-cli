@@ -164,6 +164,11 @@ func (a *application) prepareDestination(path string, clip clipFlag) (*destinati
 			return nil, err
 		}
 	}
+	if !a.cfg.json && d.out == nil && !d.clip.enabled && a.env.StdoutTTY {
+		if _, err = a.terminal(); err != nil {
+			return nil, err
+		}
+	}
 	return d, nil
 }
 

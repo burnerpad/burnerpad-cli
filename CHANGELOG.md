@@ -9,6 +9,7 @@ derived from the immutable release tag and never hardcoded in source.
 
 - Render decrypted plaintext as inert visible escapes in interactive terminals without changing pipe/file
   bytes, decoded JSON values, or the bytes encoded into OSC 52 requests.
+- Acquire the implicit viewer's controlling terminal before a destructive reveal request can consume the secret.
 
 ## [1.0.0] - 2026-09-10
 
