@@ -176,7 +176,7 @@ func TestReleaseWorkflowUsesTrustedDefaultBranchAndScopesAuthority(t *testing.T)
 		t.Error("publisher uses a long-lived release token")
 	}
 	if strings.Contains(publisher, "actions/attest") || strings.Contains(publisher, "attestations:") {
-		t.Error("publisher uses GitHub artifact attestations, which are unsupported in this private GitHub Free repository")
+		t.Error("publisher unexpectedly adds a third provenance mechanism; update the documented trust model with it")
 	}
 	last := -1
 	for _, marker := range []string{
@@ -232,7 +232,7 @@ func TestReleaseDocumentationRequiresImmutableReleases(t *testing.T) {
 	for _, want := range []string{
 		"Enable immutable releases and verify that",
 		"gh api repos/OWNER/REPOSITORY/immutable-releases --jq .enabled",
-		"Set `RELEASE_ACTOR_ID` to the numeric ID of the only account authorized",
+		"Set `RELEASE_ACTOR_ID` only after the preceding controls are verified",
 		"The publisher retries that dispatch three times.",
 		"gh workflow run repro-verify.yml",
 		"-f tag=vX.Y.Z",
