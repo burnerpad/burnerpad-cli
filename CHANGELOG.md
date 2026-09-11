@@ -88,5 +88,8 @@ derived from the immutable release tag and never hardcoded in source.
 - Enforce current-user ownership, regular-file type, owner-only modes without macOS extended ACLs or
   owner-only Windows DACLs, and final-component
   symlink/reparse refusal for named passphrase and management-token files before network access.
+- Atomically suppress inherited macOS ACLs when exclusively creating plaintext output and claimed-ciphertext
+  recovery files, so parent-directory ACLs cannot widen mode-`0600` access or create a post-creation exposure
+  window.
 - Warn before credential input or network access when `burn` receives a full share URL in argv; bare IDs and
   piped create receipts remain silent because they do not place a share URL in shell history.

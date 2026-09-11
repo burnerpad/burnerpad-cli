@@ -267,15 +267,19 @@ Finding 9 task ledger:
 - [x] 9.14 Replace the predictable vector-sync temporary path.
 - [x] 9.15 Make all pre-release changelog, installer, documentation, and task claims truthful.
 - [x] 9.16 Restore the documented wordlist attribution on stderr.
+- [x] 9.17 Atomically suppress inherited macOS ACLs when creating output and recovery files.
 
-Remediation completed 2026-09-11: all sixteen completeness and UX defects
+Remediation completed 2026-09-11: all seventeen completeness and UX defects
 above are resolved. Each item was implemented and regression-tested before it
 was checked off; the wordlist command now completes the final outstanding
 contract by writing the exact CC BY 3.0 attribution to stderr before emitting
 the 1,296-word list on stdout. The PR matrix then exposed a macOS-only 9.13
 defect: the raw, entitlement-gated ACL xattr probe has been replaced with one
 descriptor-only extended-stat call that returns both file metadata and actual
-ACL state.
+ACL state. A follow-up output audit found that mode `0600` alone does not
+suppress macOS parent-ACL inheritance; Darwin creation now supplies a no-ACL
+sentinel and no-inherit flag in the same exclusive open operation, so there is
+no post-creation ACL-clearing exposure window.
 
 ## Minimality assessment
 
@@ -412,7 +416,8 @@ whitespace gates pass, and two independent final reviews found no defect.
 - Current suite vectors, RFC vectors, and pinned Wycheproof data pass.
 - URL/origin parsing is defensive: HTTPS remotely, HTTP only on loopback, no credentials/path/query/fragment, no redirects, normal platform trust roots.
 - Response sizes are bounded and mutation requests are never automatically retried.
-- Output/recovery file creation is exclusive and owner-only, including explicit Windows DACL handling.
+- Output/recovery file creation is exclusive and owner-only: macOS atomically suppresses inherited ACLs,
+  and Windows installs an explicit protected owner-only DACL.
 - There is no application subprocess execution, telemetry, updater, config state, or compatibility probe.
 - Runtime dependencies are only `x/term` and `x/sys`.
 - No credible repository secret or known dependency vulnerability was found.

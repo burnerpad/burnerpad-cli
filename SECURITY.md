@@ -22,6 +22,8 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - Named passphrase and management-token files are opened without following a final symlink/reparse point and
   validated on the opened handle as current-user-owned, owner-only regular files before any network request;
   macOS extended ACLs are refused because they can grant access outside the BSD mode bits.
+- Plaintext and recovery outputs are reserved with exclusive owner-only creation and never overwrite an
+  existing path; macOS atomically suppresses inherited ACLs, and Windows installs a protected owner-only DACL.
 - Both interactive viewer modes treat plaintext as untrusted display data and visibly escape terminal
   controls and Unicode format characters. Pipe and file destinations retain the authenticated bytes, and
   decoded JSON round-trips them.
