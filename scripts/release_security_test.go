@@ -277,6 +277,63 @@ func TestSpecDriftIsRequiredAtPullRequestAndReleaseBoundaries(t *testing.T) {
 	if !strings.Contains(string(script), `cmp -s "$CRYPTO/SPEC.md" spec/SPEC.md ||`) {
 		t.Error("spec-drift does not require the vendored SPEC to match upstream")
 	}
+	for _, forbidden := range []string{"/tmp", "$$"} {
+		if strings.Contains(string(script), forbidden) {
+			t.Errorf("spec-drift uses predictable temporary-path fragment %q", forbidden)
+		}
+	}
+}
+
+func TestSpecDriftComparesWordlistWithoutTemporaryFile(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is required to exercise the wordlist extractor")
+	}
+	if _, err := exec.LookPath("sha256sum"); err != nil {
+		t.Skip("sha256sum is required to exercise the drift script")
+	}
+
+	wordlist, err := os.ReadFile("../wordlist/eff_short_wordlist_2_0.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := strings.ReplaceAll(strings.TrimSuffix(string(wordlist), "\n"), "\n", " ")
+	validSource := `var WORDS = ("` + words + `").split(" ");` + "\n"
+
+	t.Run("no drift", func(t *testing.T) {
+		stdout, stderr, err := runSpecDrift(t, validSource)
+		if err != nil {
+			t.Fatalf("matching fixture failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if stderr != "" {
+			t.Fatalf("matching fixture wrote stderr: %q", stderr)
+		}
+		if !strings.HasSuffix(stdout, "no drift\n") {
+			t.Fatalf("matching fixture omitted success marker:\n%s", stdout)
+		}
+		assertDriftHashes(t, stdout)
+	})
+
+	t.Run("wordlist drift", func(t *testing.T) {
+		stdout, stderr, err := runSpecDrift(t, strings.Replace(validSource, "aardvark", "aardwolf", 1))
+		if err == nil {
+			t.Fatal("wordlist drift succeeded")
+		}
+		if stderr != "DRIFT: wordlist differs\nDRIFT DETECTED\n" {
+			t.Fatalf("wordlist drift diagnostics=%q", stderr)
+		}
+		assertDriftHashes(t, stdout)
+	})
+
+	t.Run("extraction failure", func(t *testing.T) {
+		stdout, stderr, err := runSpecDrift(t, "var WORDS = [];\n")
+		if err == nil {
+			t.Fatal("unextractable wordlist succeeded")
+		}
+		if stderr != "cannot extract WORDS\nDRIFT: wordlist differs\nDRIFT DETECTED\n" {
+			t.Fatalf("extraction-failure diagnostics=%q", stderr)
+		}
+		assertDriftHashes(t, stdout)
+	})
 }
 
 func TestInstallerRepositoryIsValidatedAndDerivedFromPublisher(t *testing.T) {
@@ -688,6 +745,68 @@ func checkoutBlocks(workflow string) map[int]string {
 		blocks[i+1] = strings.Join(lines[i:end], "\n")
 	}
 	return blocks
+}
+
+func runSpecDrift(t *testing.T, cryptoApp string) (string, string, error) {
+	t.Helper()
+	upstream := t.TempDir()
+	for _, directory := range []string{
+		filepath.Join(upstream, "priv/static/vendor/crypto-js/vectors"),
+		filepath.Join(upstream, "priv/static/crypto"),
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []struct {
+		source string
+		target string
+	}{
+		{"../envelope/testdata/v1.json", "priv/static/vendor/crypto-js/vectors/v1.json"},
+		{"../spec/SPEC.md", "priv/static/vendor/crypto-js/SPEC.md"},
+	} {
+		contents, err := os.ReadFile(file.source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(upstream, file.target), contents, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(
+		filepath.Join(upstream, "priv/static/crypto/crypto-app.js"),
+		[]byte(cryptoApp),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	command := exec.Command("sh", "sync-vectors.sh", upstream)
+	var stdout, stderr strings.Builder
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	err := command.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func assertDriftHashes(t *testing.T, stdout string) {
+	t.Helper()
+	for _, path := range []string{
+		"envelope/testdata/v1.json",
+		"wordlist/eff_short_wordlist_2_0.txt",
+	} {
+		found := false
+		for _, line := range strings.Split(stdout, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) == 2 && len(fields[0]) == 64 && fields[1] == path {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("output omitted SHA-256 for %s:\n%s", path, stdout)
+		}
+	}
 }
 
 func environmentWith(replacements map[string]string) []string {
