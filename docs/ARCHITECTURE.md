@@ -212,8 +212,10 @@ began cancels that wait normally.
 `.burnerpad-lite-revision` is the reviewed current-server pin. Pull requests and releases run the reusable
 `spec-drift` gate against that exact revision, byte-comparing the vendored specification, vectors, and
 wordlist. They also run real Chromium interoperability in all three directions: browser→CLI, CLI→browser,
-and CLI→CLI. The `lite-main-interop` workflow is configured to run the same interoperability tests against
-Lite `main` on a schedule as an early drift warning.
+and CLI→CLI, including bare-ID `I`/`L`/`O` aliases. A second exact-source Lite process uses a guarded,
+test-VM-local five-second lifetime override after normal validated boot; the CLI gate proves pre-expiry
+liveness, post-expiry unavailability, and exact Store counter changes without patching upstream source. The
+`lite-main-interop` workflow runs the same tests against Lite `main` on a schedule as an early drift warning.
 
 GitHub Releases is the only official version-one binary source. A published version-one release will contain
 the platform archives, native package files, archive SBOMs, checksum manifest, keyless Cosign checksum bundle,

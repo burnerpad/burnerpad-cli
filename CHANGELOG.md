@@ -22,6 +22,8 @@ derived from the immutable release tag and never hardcoded in source.
 - One-attempt mutation transport with explicit create/claim/revoke outcome-unknown reporting.
 - Pull-request and release interoperability gates against a reviewed burnerpad-lite revision, plus a
   compatibility workflow scheduled against burnerpad-lite `main`.
+- A guarded exact-source Lite expiry process that proves default effective lifetime, pre-expiry liveness,
+  post-expiry CLI behavior, and the Store's exact counter changes without patching upstream source.
 - Tag-derived release identity and a release-rendered checksum-pinned installer, with no version constant or
   post-release version-bump commit.
 - Truthful installation guidance for the release-rendered installer and pre-release source evaluation.

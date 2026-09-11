@@ -322,7 +322,7 @@ Finding 11 task ledger:
 - [x] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
 - [x] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
 - [x] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
-- [ ] 11.5 Prove real Lite expiry end to end through the CLI.
+- [x] 11.5 Prove real Lite expiry end to end through the CLI.
 - [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
 - [ ] 11.7 Observe a successful scheduled Lite-main run after the workflow reaches `main` (GitHub-only).
 - [ ] 11.8 Verify every required check on the release commit and dispatch `v1.0.0` only after all prior gates pass (GitHub-only).
@@ -366,8 +366,23 @@ aliased-ID path, compares both output streams exactly, and proves each mutation
 through a canonical `404` follow-up. Nonmatches are revoked immediately, all
 selected rows have `finally` cleanup and a 60-second expiry backstop, and the
 bounded search has less than a 3.5×10⁻²³ aggregate miss probability. All six
-interoperability cases, the full Go test/vet/race/Staticcheck gates, ten seconds
-of focused fuzzing, dependency checks, and six size-gated cross-builds pass.
+ interoperability cases, the full Go test/vet/race/Staticcheck gates, ten seconds
+ of focused fuzzing, dependency checks, and six size-gated cross-builds pass.
+
+11.5 completed 2026-09-11: pinned, scheduled-main, and release interoperability
+now start a dedicated second Lite VM after the normal application has completed
+validated boot. A guarded bootstrap installs and verifies a test-VM-local
+five-second lifetime without patching or copying Lite source, then writes an
+exclusive readiness marker. The real CLI creates a default-lifetime secret,
+the browser request context proves its exact link is initially live, and an
+stdin-fed reveal after seven seconds returns the exact `secret_unavailable`
+contract. Dedicated Store counters prove exactly one creation and expiry, no
+claim, and restoration of the resident baseline. The complete seven-case
+Chromium suite passes against pinned Lite revision
+`01d9a3ffa29d8fdc4e62ed28e43239c3b3c04d54`; the focused expiry case also
+passes in Chromium, Firefox, WebKit, and mobile WebKit. Full Go test, vet, race,
+Staticcheck, dependency/import/decode, workflow-lint, JavaScript syntax, and
+Elixir formatting gates pass, and two independent reviews found no defect.
 
 ## What is strong
 
