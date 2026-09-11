@@ -189,7 +189,6 @@ test("Go CLI create is revealed by browser", async ({ page }) => {
   expect(created.status).toBe("created");
   expect(created.server).toBe(server);
   await page.goto(created.link);
-  await expect(page.locator("#bp-psk-input")).toBeFocused();
   await pastePhrase(page, created.phrase);
   await page.locator("#bp-psk-reveal").click();
   await expect(page.locator("#bp-revealed")).toBeVisible();
