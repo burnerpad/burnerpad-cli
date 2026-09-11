@@ -21,24 +21,20 @@ var (
 // digits plus uppercase letters without I, L, O, U.
 const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-// Normalize mirrors the current server's public identifier normalization:
-// Unicode upcase → strip only "-" → fold I,L→1 and O→0 → require exactly
-// 26 alphabet bytes. The length check applies after normalization.
-//
-// Known fail-closed divergence: Elixir's String.upcase applies full case
-// mapping (ß→SS, ﬁ→FI) where strings.ToUpper applies only simple per-rune
-// mapping and leaves those runes unchanged; the unchanged rune then fails
-// the alphabet check. Go therefore rejects a handful of exotic inputs the
-// server would accept — never the reverse.
+// Normalize mirrors the current server's public identifier normalization for
+// ASCII input: uppercase → strip only "-" → fold I,L→1 and O→0 → require
+// exactly 26 alphabet bytes. Non-ASCII input is rejected before case folding.
 func Normalize(raw string) (string, error) {
-	up := strings.ToUpper(raw)
-	// Strip/fold byte-wise: '-', 'I', 'L', 'O' are ASCII and cannot occur
-	// inside a UTF-8 multibyte sequence, so this matches the server's
-	// grapheme-wise String.replace calls.
-	var b strings.Builder
-	b.Grow(len(up))
-	for i := 0; i < len(up); i++ {
-		c := up[i]
+	var normalized [26]byte
+	n := 0
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		if c >= 0x80 {
+			return "", ErrBadID
+		}
+		if c >= 'a' && c <= 'z' {
+			c -= 'a' - 'A'
+		}
 		switch c {
 		case '-':
 			continue
@@ -47,16 +43,14 @@ func Normalize(raw string) (string, error) {
 		case 'O':
 			c = '0'
 		}
-		b.WriteByte(c)
-	}
-	norm := b.String()
-	if len(norm) != 26 {
-		return "", ErrBadID
-	}
-	for i := 0; i < len(norm); i++ {
-		if strings.IndexByte(alphabet, norm[i]) < 0 {
+		if n == len(normalized) || strings.IndexByte(alphabet, c) < 0 {
 			return "", ErrBadID
 		}
+		normalized[n] = c
+		n++
 	}
-	return norm, nil
+	if n != len(normalized) {
+		return "", ErrBadID
+	}
+	return string(normalized[:]), nil
 }

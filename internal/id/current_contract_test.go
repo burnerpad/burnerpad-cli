@@ -24,6 +24,46 @@ func TestCurrentContractNormalizesExactlyTwentySixCharacters(t *testing.T) {
 	}
 }
 
+func TestCurrentContractNormalizesASCIIIdentifierAliases(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		raw  string
+	}{
+		{name: "O to zero", raw: "O" + canonicalID[1:]},
+		{name: "I to one", raw: canonicalID[:1] + "I" + canonicalID[2:]},
+		{name: "L to one", raw: canonicalID[:1] + "L" + canonicalID[2:]},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := Normalize(test.raw)
+			if err != nil {
+				t.Fatalf("Normalize: %v", err)
+			}
+			if got != canonicalID {
+				t.Fatalf("Normalize = %q, want %q", got, canonicalID)
+			}
+		})
+	}
+}
+
+func TestCurrentContractRejectsNonASCIIIdentifierAliases(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		raw  string
+	}{
+		{name: "dotless i", raw: canonicalID[:1] + "\u0131" + canonicalID[2:]},
+		{name: "long s", raw: canonicalID[:25] + "\u017f"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := Normalize(test.raw); !errors.Is(err, ErrBadID) {
+				t.Fatalf("Normalize error = %v, want ErrBadID", err)
+			}
+			if _, err := ParseBurnTarget(test.raw); !errors.Is(err, ErrBadID) {
+				t.Fatalf("ParseBurnTarget error = %v, want ErrBadID", err)
+			}
+		})
+	}
+}
+
 func TestCurrentContractSeparatesRevealAndBurnTargets(t *testing.T) {
 	reveal, err := ParseShareURL("HTTPS://Example.COM:8443/s/o123-4567-89ab-cdef-ghjk-mnpq-rs")
 	if err != nil {
