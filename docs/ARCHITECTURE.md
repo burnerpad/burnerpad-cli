@@ -148,7 +148,8 @@ Reveal performs fallible local work in this order:
 8. decrypt and validate UTF-8 locally; and
 9. deliver original plaintext to one byte-exact destination or a safe rendition to a terminal.
 
-A valid wrong phrase may be retried locally against the held ciphertext and never triggers another claim.
+A valid wrong phrase may be retried locally by entering the complete phrase again against the held ciphertext;
+the retry never triggers another claim.
 `--keep-blob` writes canonical base64url plus one newline and retains it on success or failure. Without it,
 abandoning held ciphertext warns, but neither stderr nor JSON ever receives the blob.
 

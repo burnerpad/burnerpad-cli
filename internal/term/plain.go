@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
 	"github.com/burnerpad/burnerpad-cli/wordlist"
@@ -16,11 +15,9 @@ import (
 // mode, one word (or the whole phrase) per line, list-validated with a
 // spoken-friendly echo, no ANSI, no cursor addressing. Line validation is
 // atomic like paste (§7.2): a multi-word line commits all tokens or none.
-// A valid seed (§7.3 retry) starts committed and is re-echoed with its count
-// — a screen-reader user must hear the state; an invalid seed is ignored.
-func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.Buffer, error) {
+func readPhrasePlain(r io.Reader, w io.Writer, min int) (*secret.Buffer, error) {
 	br := bufio.NewReader(r)
-	return readPhrasePlainLines(w, min, seed, func() ([]byte, error) {
+	return readPhrasePlainLines(w, min, func() ([]byte, error) {
 		line, err := readLine(br, wordlist.MaxPhraseBytes)
 		if err != nil {
 			if errors.Is(err, ErrInputTooLong) {
@@ -32,25 +29,16 @@ func readPhrasePlain(r io.Reader, w io.Writer, min int, seed []string) (*secret.
 	})
 }
 
-func readPhrasePlainContext(ctx context.Context, t *TTY, min int, seed []string) (*secret.Buffer, error) {
-	return readPhrasePlainLines(t.out, min, seed, func() ([]byte, error) {
+func readPhrasePlainContext(ctx context.Context, t *TTY, min int) (*secret.Buffer, error) {
+	return readPhrasePlainLines(t.out, min, func() ([]byte, error) {
 		return t.readLineContext(ctx, wordlist.MaxPhraseBytes)
 	})
 }
 
-func readPhrasePlainLines(w io.Writer, min int, seed []string, nextLine func() ([]byte, error)) (*secret.Buffer, error) {
+func readPhrasePlainLines(w io.Writer, min int, nextLine func() ([]byte, error)) (*secret.Buffer, error) {
 	fmt.Fprintf(w, "Passphrase — one word per line, or the whole phrase on one line.\n")
 	fmt.Fprintf(w, "An empty line submits once at least %d words are entered; every word must be on the list.\n", min)
-	words := wordlist.Words()
 	var committed []string
-	if seedable(words, seed, min) {
-		// §7.3: the previous words are kept. Spoken form of the kept-words
-		// status, then the standard post-gate reminder — plain mode has no
-		// un-commit gesture, so the seed line names every word out loud.
-		committed = append(committed, seed...)
-		fmt.Fprintf(w, "%d words kept: %s\n", len(committed), strings.Join(committed, " "))
-		fmt.Fprintf(w, "%d words — an empty line submits; keep typing if the phrase was longer\n", len(committed))
-	}
 	for {
 		fmt.Fprint(w, plainLabel(len(committed), min))
 		line, err := nextLine()

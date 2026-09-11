@@ -22,17 +22,6 @@ func promptLabel(n, min int) string {
 // PromptLabel is promptLabel at the standard 7-word gate.
 func PromptLabel(n int) string { return promptLabel(n, wordlist.PhraseWords) }
 
-// seededLabel is the §7.3 seeded-start label. A wrong-passphrase retry
-// re-opens the prompt with the previous words kept, and the doc's screen pins
-// that first paint as `word 7/7 ▸ _  (your words are kept; Backspace steps
-// into them)` — the ordinal of the last kept word over the kept count, NOT
-// A11's post-gate `7 words ▸` (the §7.3 form names the word the cursor sits
-// behind, which is what "Backspace steps into them" edits first). Seeds are
-// gated at ≥ min, so n/n generalizes it (`word 8/8 ▸` for an 8-word phrase).
-// It applies only while Machine.SeededIntact holds; the first gesture returns
-// the A11 labels.
-func seededLabel(n int) string { return fmt.Sprintf("word %d/%d ▸ ", n, n) }
-
 // Render is the pure single-line renderer of §7.2 "Narrow terminals &
 // resize" as amended by A10: (committed, buf, ghost, width) → the one
 // physical line to paint with CR+EL. Widths are counted in runes; one column

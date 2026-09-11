@@ -254,7 +254,7 @@ Finding 9 task ledger:
 - [x] 9.4 Bound bracketed-paste and plain prompt-line memory.
 - [x] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
 - [x] 9.6 Remove the inert `--quiet` surface.
-- [ ] 9.7 Remove the unused seeded-retry subsystem.
+- [x] 9.7 Remove the unused seeded-retry subsystem.
 - [ ] 9.8 Correct completion grammar and unsupported flag suggestions.
 - [ ] 9.9 Warn when `burn` receives a share URL in argv.
 - [ ] 9.10 Add installation guidance and complete command help behavior/topics.
@@ -283,7 +283,7 @@ Using a deep-module/deletion-test lens, `envelope`, `id`, `api`, and `secret` ar
 Finding 10 task ledger:
 
 - [ ] 10.1 Delete the unused spinner implementation and tests.
-- [ ] 10.2 Delete the unused seeded-retry subsystem (completed with 9.7).
+- [x] 10.2 Delete the unused seeded-retry subsystem (completed with 9.7).
 - [x] 10.3 Delete the inert `--quiet` configuration and interface (completed with 9.6).
 - [ ] 10.4 Replace duplicated completion vocabularies with one command schema (completed with 9.8).
 - [ ] 10.5 Share reveal/decrypt authentication, retry, validation, and delivery flow.

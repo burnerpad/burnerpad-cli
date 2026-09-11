@@ -36,7 +36,6 @@ type Machine struct {
 	committed []string
 	buf       []rune
 	done      bool
-	seeded    bool // at the untouched §7.3 seeded start; first gesture clears it
 }
 
 // NewMachine returns a machine over the embedded word list. min is the
@@ -56,104 +55,6 @@ func NewMintingMachine(min int) *Machine {
 
 // Committed returns a copy of the committed words.
 func (m *Machine) Committed() []string { return append([]string(nil), m.committed...) }
-
-// seedStatus is the §7.3 kept-words status line, verbatim from the doc's
-// auth-fail screen.
-const seedStatus = "(your words are kept; Backspace steps into them)"
-
-// seedable reports whether seed is a committed list that min-gated
-// list-locked entry could itself have produced: at least min words, each on
-// the list, all distinct. Anything else is not a §7.3 retained state.
-func seedable(words, seed []string, min int) bool {
-	if len(seed) < min || len(seed) > wordlist.MaxPhraseWords {
-		return false
-	}
-	seen := make(map[string]bool, len(seed))
-	for _, w := range seed {
-		if !inList(words, w) || seen[w] {
-			return false
-		}
-		seen[w] = true
-	}
-	return true
-}
-
-// Seed pre-commits words — the §7.3 wrong-passphrase retry state ("The
-// committed words are retained for editing"). It takes only on a fresh
-// machine (nothing committed, empty buf, list-locked, not done) and only a
-// seed that min-gated entry could itself have produced (seedable); the seeded
-// machine then behaves EXACTLY as if the words had just been committed:
-// Backspace un-commits the last one into buf, Enter on the empty buf submits,
-// candidate exclusion and the renderer see ordinary committed words. The
-// returned Output is the initial §7.3 surface (kept-words status). ok=false
-// leaves the machine untouched — the caller prompts fresh.
-func (m *Machine) Seed(words []string) (out Output, ok bool) {
-	if m.done || len(m.committed) > 0 || len(m.buf) > 0 {
-		return Output{}, false
-	}
-	if !seedable(m.words, words, m.minWords) {
-		return Output{}, false
-	}
-	m.committed = append([]string(nil), words...)
-	m.seeded = true
-	return Output{Committed: m.Committed(), Status: seedStatus}, true
-}
-
-// SeededIntact reports whether the machine still sits at the untouched
-// seeded start — the one surface where the §7.3 label (`word 7/7 ▸`) and
-// kept-words status apply. The first gesture ends it; the A11 labels resume.
-func (m *Machine) SeededIntact() bool { return m.seeded }
-
-// SeedWords parses a previously submitted canonical phrase back into the
-// committed word list it was built from — the §7.3 retry seed. min is the
-// committed-word gate the next prompt will run with (≤ 0 selects
-// wordlist.PhraseWords). The words come back only when the phrase is exactly
-// what min-gated list-locked entry submits: ≥ min distinct list words joined
-// by single spaces. Anything else — free-form phrases above all — returns
-// nil, and no string copy of a non-qualifying phrase is ever made: tokens
-// are checked against the list as raw bytes first, so string material is
-// minted only for public list words (only the SELECTION is secret, and the
-// Machine holds committed words as strings anyway).
-func SeedWords(phrase []byte, min int) []string {
-	if min <= 0 {
-		min = wordlist.PhraseWords
-	}
-	words := wordlist.Words()
-	// Pass 1, bytes only: single-space framing and per-token list membership.
-	var starts, ends []int
-	start := 0
-	for i := 0; i <= len(phrase); i++ {
-		if i < len(phrase) && phrase[i] != ' ' {
-			continue
-		}
-		if i == start {
-			return nil // empty token: leading/trailing/double space, or empty phrase
-		}
-		if !inListBytes(words, phrase[start:i]) {
-			return nil
-		}
-		starts, ends = append(starts, start), append(ends, i)
-		if len(starts) > wordlist.MaxPhraseWords {
-			return nil
-		}
-		start = i + 1
-	}
-	if len(starts) < min {
-		return nil
-	}
-	// Pass 2: every token is a public list word — strings are safe to mint.
-	out := make([]string, len(starts))
-	seen := make(map[string]bool, len(starts))
-	for i := range starts {
-		w := string(phrase[starts[i]:ends[i]])
-		if seen[w] {
-			return nil // duplicates: not producible by list-locked entry
-		}
-		seen[w] = true
-		out[i] = w
-	}
-	return out
-}
 
 // Buf returns the current partial word.
 func (m *Machine) Buf() string { return string(m.buf) }
@@ -314,12 +215,6 @@ func (m *Machine) commit(w string) (bool, string) {
 // KindCtrlC, KindCtrlD, and KindIgnored are no-ops here: interruption and
 // EOF are flow control, owned by the prompt loop, not phrase state.
 func (m *Machine) Handle(e Event) Output {
-	switch e.Kind {
-	case KindCtrlC, KindCtrlD, KindIgnored:
-		// flow control: the §7.3 seeded start survives them like any state
-	default:
-		m.seeded = false // any real gesture ends the seeded-start surface
-	}
 	var bell bool
 	var status string
 	switch e.Kind {

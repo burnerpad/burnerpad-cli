@@ -34,6 +34,9 @@ derived from the immutable release tag and never hardcoded in source.
 
 - Remove the inert `--quiet` option from parsing, help, completions, and documentation; supplying it is now an
   invalid option instead of silently producing unchanged output.
+- Delete the unused retained-word retry state, seed parser, rendering branch, and duplicate tests; local
+  wrong-phrase retries still re-enter a complete phrase against the already-held ciphertext without a network
+  retry.
 
 ### Security
 
