@@ -28,6 +28,52 @@ func TestOpenCredentialFileRejectsDarwinExtendedACL(t *testing.T) {
 	assertUnprotectedCredentialFile(t, path)
 }
 
+func TestCreateExclusiveSuppressesDarwinACLInheritance(t *testing.T) {
+	directory := t.TempDir()
+	if output, err := exec.Command(
+		"/bin/chmod",
+		"+a",
+		"everyone allow read,file_inherit",
+		directory,
+	).CombinedOutput(); err != nil {
+		t.Fatalf("add inheritable test ACL: %v: %s", err, output)
+	}
+
+	controlPath := filepath.Join(directory, "ordinary")
+	if err := os.WriteFile(controlPath, []byte("control"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertUnprotectedCredentialFile(t, controlPath)
+
+	path := filepath.Join(directory, "exclusive")
+	file, err := CreateExclusive(path)
+	if err != nil {
+		t.Fatalf("CreateExclusive: %v", err)
+	}
+	if _, err := file.Write([]byte("payload")); err != nil {
+		_ = file.Close()
+		t.Fatalf("write: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %o, want 0600", info.Mode().Perm())
+	}
+	credential, err := OpenCredentialFile(path)
+	if err != nil {
+		t.Fatalf("created file failed credential-file policy: %v", err)
+	}
+	if err := credential.Close(); err != nil {
+		t.Fatalf("close credential file: %v", err)
+	}
+}
+
 func TestDarwinFileSecurityHasACL(t *testing.T) {
 	fileSecurity := func(entryCount uint32) []byte {
 		size := darwinFileSecurityHeaderSize

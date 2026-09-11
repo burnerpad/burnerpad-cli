@@ -180,11 +180,12 @@ instructions never reach the TTY. Alternate-screen output is split into terminal
 the complete rendered plaintext: Space or Enter advances, `b` goes back, and `q` closes. Terminals too small
 for the frame use the scrollback fallback. The rendition is intentionally not byte-exact. Non-terminal stdout
 and `--out` receive exact UTF-8 bytes, and decoding JSON's `plaintext` string reproduces them exactly. `--out`
-creates mode `0600` (or an owner-only Windows DACL), uses exclusive creation, and never overwrites. A
-reservation made before a failed claim is removed only by the invocation that created it. There is no built-in
-clipboard destination: terminal clipboard protocols cannot confirm acceptance or completeness, and helper
-executables would add a PATH/platform trust boundary. Callers may compose non-terminal stdout with their own
-tool; destructive reveal should pair unverified external delivery with `--keep-blob`.
+and `--keep-blob` use exclusive creation and never overwrite. Unix files use mode `0600`; macOS also
+atomically suppresses inherited ACLs in the creation operation, while Windows installs a protected owner-only
+DACL. A reservation made before a failed claim is removed only by the invocation that created it. There is no
+built-in clipboard destination: terminal clipboard protocols cannot confirm acceptance or completeness, and
+helper executables would add a PATH/platform trust boundary. Callers may compose non-terminal stdout with their
+own tool; destructive reveal should pair unverified external delivery with `--keep-blob`.
 
 ## Machine and exit contract
 
