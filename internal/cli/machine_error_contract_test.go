@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
-	"github.com/burnerpad/burnerpad-cli/internal/api"
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
@@ -32,7 +31,6 @@ var expectedMachineErrorExits = map[string]int{
 	"network_unavailable":       7,
 	"rate_limited":              7,
 	"service_unavailable":       7,
-	"invalid_server_response":   8,
 	"unsupported_secret":        8,
 	"create_outcome_unknown":    9,
 	"claim_outcome_unknown":     9,
@@ -190,19 +188,6 @@ func TestCurrentJSONErrorVocabularyAndExitMapping(t *testing.T) {
 			run:     responseServer(http.StatusServiceUnavailable, `{}`),
 		},
 		{
-			name: "invalid server response", exit: 8, code: "invalid_server_response",
-			message: "the server returned an invalid response",
-			run: func(t *testing.T) (int, string, string) {
-				t.Helper()
-				// No current HTTP path constructs ProtocolError. Keep its promised
-				// machine mapping pinned until that dead classification is resolved.
-				const server = "https://example.com"
-				var stdout bytes.Buffer
-				a := application{env: Env{Stdout: &stdout, Stderr: io.Discard}, cfg: config{json: true}}
-				return a.report(mapAPIError(api.ProtocolError{Status: http.StatusTeapot}, server)), stdout.String(), server
-			},
-		},
-		{
 			name: "unsupported secret", exit: 8, code: "unsupported_secret",
 			message: "the ciphertext is not a supported Burnerpad passphrase secret",
 			run: func(t *testing.T) (int, string, string) {
@@ -278,6 +263,81 @@ func TestCurrentJSONErrorVocabularyAndExitMapping(t *testing.T) {
 			}
 			want += "}\n"
 			if stdout != want {
+				t.Fatalf("stdout=%q, want exact ordered JSON %q", stdout, want)
+			}
+		})
+	}
+}
+
+func TestCurrentJSONRetryAfterContract(t *testing.T) {
+	tests := []struct {
+		name, retryAfter, code, message, optionalField string
+		status                                         int
+	}{
+		{
+			name:       "malformed rate limit header is omitted",
+			status:     http.StatusTooManyRequests,
+			retryAfter: "not-a-number",
+			code:       "rate_limited",
+			message:    "the server rate-limited the request",
+		},
+		{
+			name:       "negative temporary failure header is omitted",
+			status:     http.StatusServiceUnavailable,
+			retryAfter: "-1",
+			code:       "service_unavailable",
+			message:    "the server is temporarily unavailable",
+		},
+		{
+			name:       "plus sign is not delta-seconds",
+			status:     http.StatusTooManyRequests,
+			retryAfter: "+1",
+			code:       "rate_limited",
+			message:    "the server rate-limited the request",
+		},
+		{
+			name:       "signed zero is not delta-seconds",
+			status:     http.StatusServiceUnavailable,
+			retryAfter: "-0",
+			code:       "service_unavailable",
+			message:    "the server is temporarily unavailable",
+		},
+		{
+			name:       "overflowing delta-seconds is omitted",
+			status:     http.StatusTooManyRequests,
+			retryAfter: "9223372036854775808",
+			code:       "rate_limited",
+			message:    "the server rate-limited the request",
+		},
+		{
+			name:          "zero is a valid rate limit delay",
+			status:        http.StatusTooManyRequests,
+			retryAfter:    "0",
+			code:          "rate_limited",
+			message:       "the server rate-limited the request",
+			optionalField: `,"retry_after":0`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			srv, requests := contractResponseServerWithRetryAfter(t, test.status, `{}`, test.retryAfter)
+			token := credentialFile(t, "token", contractToken+"\n")
+			env, stdout, _ := contractEnv([]string{
+				"burn", "--server", srv.URL, "--json", "--token-file", token, contractID,
+			}, "")
+
+			if exit := Run(env); exit != 7 {
+				t.Fatalf("exit=%d, want 7; stdout=%s", exit, stdout)
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("requests=%d, want 1", requests.Load())
+			}
+			want := fmt.Sprintf(
+				`{"status":"error","code":%q,"message":%q,"server":%q%s}`+"\n",
+				test.code, test.message, srv.URL, test.optionalField,
+			)
+			if stdout.String() != want {
 				t.Fatalf("stdout=%q, want exact ordered JSON %q", stdout, want)
 			}
 		})
@@ -401,11 +461,20 @@ func decryptErrorRun(input func() ([]byte, string)) jsonErrorRunner {
 
 func contractResponseServer(t *testing.T, status int, body string, retryAfter ...int64) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
+	rawRetryAfter := ""
+	if len(retryAfter) != 0 {
+		rawRetryAfter = fmt.Sprint(retryAfter[0])
+	}
+	return contractResponseServerWithRetryAfter(t, status, body, rawRetryAfter)
+}
+
+func contractResponseServerWithRetryAfter(t *testing.T, status int, body, retryAfter string) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Add(1)
-		if len(retryAfter) != 0 {
-			w.Header().Set("Retry-After", fmt.Sprint(retryAfter[0]))
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
 		}
 		w.WriteHeader(status)
 		_, _ = io.WriteString(w, body)

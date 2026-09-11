@@ -190,7 +190,10 @@ tool; destructive reveal should pair unverified external delivery with `--keep-b
 
 JSON uses four fixed success structs and one flat error struct. Error fields never contain a URL, ID,
 phrase, token, ciphertext, plaintext, raw response, path, or nested error. `retry_after` appears only when a
-server supplied it. Field names and exit meanings are documented in the README and ADR-0028.
+server supplied a valid non-negative delta-seconds value; zero is valid. Field names and exit meanings are
+documented in the README and ADR-0028. Exit `8` means only `unsupported_secret`: local ciphertext is not
+canonical Burnerpad base64url or is not a supported passphrase envelope. A malformed final mutation response
+cannot establish the operation's outcome and is therefore operation-specific exit `9`, not exit `8`.
 
 One Run-owned cancellation context covers input, mutation transport, and interactive waits. On the first
 signal, Run cancels and joins command dispatch before restoring the terminal or returning.

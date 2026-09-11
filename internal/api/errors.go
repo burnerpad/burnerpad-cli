@@ -29,12 +29,6 @@ func (e RejectedError) Error() string {
 	return "server rejected request (HTTP " + strconv.Itoa(e.Status) + ")"
 }
 
-type ProtocolError struct{ Status int }
-
-func (e ProtocolError) Error() string {
-	return "invalid server response (HTTP " + strconv.Itoa(e.Status) + ")"
-}
-
 func mutationError(operation string, wrote bool, cause error) error {
 	if wrote {
 		return OutcomeUnknownError{Operation: operation}

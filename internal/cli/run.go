@@ -61,7 +61,6 @@ var machineErrorExits = map[string]int{
 	"network_unavailable":       7,
 	"rate_limited":              7,
 	"service_unavailable":       7,
-	"invalid_server_response":   8,
 	"unsupported_secret":        8,
 	"create_outcome_unknown":    9,
 	"claim_outcome_unknown":     9,

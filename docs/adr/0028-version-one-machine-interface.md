@@ -1,6 +1,6 @@
 # ADR-0028: Freeze the minimal machine interface for version one
 
-Date: 2026-09-10 · Status: Accepted, amended for mutation-aware signals and by [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md) · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
+Date: 2026-09-10 · Status: Accepted · Amended by: mutation-aware signals, [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md), [ADR-0036](0036-retire-inert-quiet-option.md), [ADR-0041](0041-retire-unreachable-invalid-server-response.md) · Supersedes: [ADR-0007](0007-stream-discipline-and-machine-surface.md)
 
 ADR-0035 removes clipboard delivery from the local-failure and pending-cancellation portions of this interface;
 the remaining machine contract is unchanged.
@@ -10,6 +10,12 @@ the remaining machine contract is unchanged.
 [ADR-0036](0036-retire-inert-quiet-option.md) removed the unreleased `--quiet` option, which never affected
 output, before version one. Required recovery data, warnings, and diagnostics remain unconditional; the original
 quiet-mode sentence below is retained as history.
+
+## Amendment: unreachable invalid-response error retirement (2026-09-11)
+
+[ADR-0041](0041-retire-unreachable-invalid-server-response.md) removes the unreleased
+`invalid_server_response` code and its unreachable API error type. Exit `8` now means only
+`unsupported_secret`; the broader exit meaning in the original decision below is retained as history.
 
 ## Context
 

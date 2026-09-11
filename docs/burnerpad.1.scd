@@ -123,7 +123,7 @@ error.
 
 0 success; 2 invalid command/option/input/credential source; 3 local I/O/terminal failure;
 4 secret unavailable; 5 passphrase or plaintext validation failure; 6 definitive server rejection;
-7 network/rate-limit/temporary service failure; 8 invalid server response or unsupported ciphertext;
+7 network/rate-limit/temporary service failure; 8 unsupported ciphertext;
 9 mutation outcome unknown; 10 internal failure; 130 SIGINT; 143 SIGTERM.
 
 The first signal cancels and joins the command. A transmitted mutation left unconfirmed reports status 9

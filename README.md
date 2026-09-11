@@ -212,8 +212,9 @@ Errors are flat and secret-free:
 {"status":"error","code":"claim_outcome_unknown","message":"…","server":"https://burnerpad.io"}
 ```
 
-`retry_after` is the only optional field, and appears only when supplied by the server. Ordinary JSON errors
-use the following closed code vocabulary; no code is emitted for success or signal exits.
+`retry_after` is the only optional field, and appears only when the server supplies a valid non-negative
+delta-seconds value; zero is valid. Ordinary JSON errors use the following closed code vocabulary; no code is
+emitted for success or signal exits.
 
 | Exit | JSON error codes | Meaning |
 |---:|---|---|
@@ -224,7 +225,7 @@ use the following closed code vocabulary; no code is emitted for success or sign
 | `5` | `passphrase_failed`, `plaintext_invalid` | Passphrase failed or authenticated plaintext was not UTF-8 |
 | `6` | `server_rejected` | Server definitively rejected the request |
 | `7` | `network_unavailable`, `rate_limited`, `service_unavailable` | Network, rate-limit, or temporary service failure |
-| `8` | `invalid_server_response`, `unsupported_secret` | Invalid server response or unsupported ciphertext |
+| `8` | `unsupported_secret` | Unsupported ciphertext |
 | `9` | `create_outcome_unknown`, `claim_outcome_unknown`, `revoke_outcome_unknown` | A mutation may have happened, but its outcome is unknown |
 | `10` | `internal` | Internal failure |
 | `130`, `143` | — | SIGINT or SIGTERM |

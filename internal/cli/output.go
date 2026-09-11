@@ -100,10 +100,6 @@ func mapAPIError(err error, server string) error {
 	if errors.As(err, &rejected) {
 		return commandError{exit: 6, code: "server_rejected", message: "the server rejected the request", server: server, cause: err}
 	}
-	var protocol api.ProtocolError
-	if errors.As(err, &protocol) {
-		return commandError{exit: 8, code: "invalid_server_response", message: "the server returned an invalid response", server: server, cause: err}
-	}
 	return commandError{exit: 10, code: "internal", message: "unexpected internal failure", server: server, cause: err}
 }
 
