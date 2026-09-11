@@ -54,6 +54,10 @@ func TestCompletionSchemaDistinguishesFileAndDescriptorValues(t *testing.T) {
 }
 
 func runBashCompletion(t *testing.T, words ...string) []string {
+	return runBashCompletionFrom(t, "", words...)
+}
+
+func runBashCompletionFrom(t *testing.T, directory string, words ...string) []string {
 	t.Helper()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -71,6 +75,7 @@ func runBashCompletion(t *testing.T, words ...string) []string {
 	}
 	fmt.Fprintf(&input, " )\nCOMP_CWORD=%d\n_burnerpad\nprintf '%%s\\0' \"${COMPREPLY[@]}\"\n", len(words)-1)
 	cmd := exec.Command(bash, "--noprofile", "--norc")
+	cmd.Dir = directory
 	cmd.Stdin = strings.NewReader(input.String())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -113,10 +118,10 @@ func TestBashCompletionUsesNativeFileCandidates(t *testing.T) {
 	if err := os.WriteFile(path, []byte("test"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	prefix := filepath.Join(dir, "pay")
-	if got := runBashCompletion(t, "burnerpad", "create", "--input", prefix); !slices.Equal(got, []string{path}) {
-		t.Fatalf("input value completions = %v, want %s", got, path)
-	}
+	// A Git Bash user supplies a shell-native path, not filepath.Join's Win32
+	// backslash spelling. A relative prefix exercises that contract everywhere.
+	got := runBashCompletionFrom(t, dir, "burnerpad", "create", "--input", "pay")
+	requireFileCompletion(t, got, dir, path)
 }
 
 func runZshCompletion(t *testing.T, words ...string) []string {
@@ -200,7 +205,12 @@ func TestFishCompletionRespectsOptionValuePositions(t *testing.T) {
 	}
 }
 
-func runPowerShellCompletion(t *testing.T, line, word string) []string {
+type powerShellCompletionResult struct {
+	text    string
+	toolTip string
+}
+
+func runPowerShellCompletion(t *testing.T, line, word string) []powerShellCompletionResult {
 	t.Helper()
 	pwsh, err := exec.LookPath("pwsh")
 	if err != nil {
@@ -215,13 +225,70 @@ func runPowerShellCompletion(t *testing.T, line, word string) []string {
 	fmt.Fprintf(&input, "$line = %s\n", quote(line))
 	input.WriteString("$ast = [System.Management.Automation.Language.Parser]::ParseInput($line, [ref]$tokens, [ref]$parseErrors)\n")
 	input.WriteString("$commandAst = $ast.EndBlock.Statements[0].PipelineElements[0]\n")
-	fmt.Fprintf(&input, "& $global:BurnerpadCompleter %s $commandAst $line.Length | ForEach-Object { $_.CompletionText }\n", quote(word))
+	fmt.Fprintf(&input, "$results = @(& $global:BurnerpadCompleter %s $commandAst $line.Length)\n", quote(word))
+	input.WriteString("$results | ForEach-Object { [Console]::Out.Write([string]$_.CompletionText); [Console]::Out.Write([char]0); [Console]::Out.Write([string]$_.ToolTip); [Console]::Out.Write([char]0) }\n")
 	cmd := exec.Command(pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", input.String())
-	out, err := cmd.CombinedOutput()
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("PowerShell completion failed: %v\n%s", err, out)
+		t.Fatalf("PowerShell completion failed: %v\n%s", err, stderr.String())
 	}
-	return strings.Fields(string(out))
+	if len(out) == 0 {
+		return nil
+	}
+	if out[len(out)-1] != 0 {
+		t.Fatalf("PowerShell completion output is not NUL-terminated: %q", out)
+	}
+	fields := strings.Split(string(out[:len(out)-1]), "\x00")
+	if len(fields)%2 != 0 {
+		t.Fatalf("PowerShell completion output has an incomplete record: %q", out)
+	}
+	results := make([]powerShellCompletionResult, 0, len(fields)/2)
+	for i := 0; i < len(fields); i += 2 {
+		results = append(results, powerShellCompletionResult{text: fields[i], toolTip: fields[i+1]})
+	}
+	return results
+}
+
+func powerShellCompletionTexts(results []powerShellCompletionResult) []string {
+	texts := make([]string, len(results))
+	for i, result := range results {
+		texts[i] = result.text
+	}
+	return texts
+}
+
+func powerShellCompletionToolTips(results []powerShellCompletionResult) []string {
+	toolTips := make([]string, len(results))
+	for i, result := range results {
+		toolTips[i] = result.toolTip
+	}
+	return toolTips
+}
+
+func requireFileCompletion(t *testing.T, candidates []string, directory, want string) {
+	t.Helper()
+	if len(candidates) != 1 {
+		t.Fatalf("file completions = %v, want exactly one candidate for %s", candidates, want)
+	}
+	// Windows shells may expand the RUNNER~1 form used by os.TempDir to its
+	// long spelling. Compare the underlying file rather than path text.
+	wantInfo, err := os.Stat(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := candidates[0]
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(directory, candidate)
+	}
+	candidateInfo, err := os.Stat(candidate)
+	if err != nil {
+		t.Fatalf("stat completion %q: %v", candidate, err)
+	}
+	if !os.SameFile(candidateInfo, wantInfo) {
+		t.Fatalf("file completion %q does not identify %s", candidate, want)
+	}
 }
 
 func TestPowerShellCompletionRespectsOptionValuePositions(t *testing.T) {
@@ -229,19 +296,18 @@ func TestPowerShellCompletionRespectsOptionValuePositions(t *testing.T) {
 		t.Fatalf("leading server value completions = %v, want none", got)
 	}
 	got := runPowerShellCompletion(t, "burnerpad create --input --burnerpad-no-file-match", "--burnerpad-no-file-match")
-	if slices.Contains(got, "--ttl") || slices.Contains(got, "--timeout") {
+	texts := powerShellCompletionTexts(got)
+	if slices.Contains(texts, "--ttl") || slices.Contains(texts, "--timeout") {
 		t.Fatalf("input value offered options: %v", got)
 	}
 	dir := t.TempDir()
-	path := filepath.Join(dir, "payload.txt")
+	path := filepath.Join(dir, "payload secret.txt")
 	if err := os.WriteFile(path, []byte("test"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	prefix := filepath.Join(dir, "pay")
 	got = runPowerShellCompletion(t, "burnerpad create --input "+prefix, prefix)
-	if !slices.Contains(got, path) {
-		t.Fatalf("input value completions = %v, want native candidate %s", got, path)
-	}
+	requireFileCompletion(t, powerShellCompletionToolTips(got), "", path)
 }
 
 func TestPowerShellCompletionParses(t *testing.T) {
