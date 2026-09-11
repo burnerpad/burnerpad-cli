@@ -3,8 +3,6 @@ package term
 import (
 	"fmt"
 	"strings"
-
-	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
 const elisionMark = '…'
@@ -17,19 +15,6 @@ func promptLabel(n, min int) string {
 		return fmt.Sprintf("word %d/%d ▸ ", n+1, min)
 	}
 	return fmt.Sprintf("%d words ▸ ", n)
-}
-
-// PromptLabel is promptLabel at the standard 7-word gate.
-func PromptLabel(n int) string { return promptLabel(n, wordlist.PhraseWords) }
-
-// Render is the pure single-line renderer of §7.2 "Narrow terminals &
-// resize" as amended by A10: (committed, buf, ghost, width) → the one
-// physical line to paint with CR+EL. Widths are counted in runes; one column
-// is reserved for the cursor cell, so the returned line is always < width
-// runes — which is what makes "wrap can never occur" true.
-func Render(committed []string, buf, ghost string, width int) string {
-	pre, gh := renderLine(promptLabel(len(committed), wordlist.PhraseWords), committed, buf, ghost, width)
-	return pre + gh
 }
 
 // renderLine builds the line as (everything before the cursor, ghost shown

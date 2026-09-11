@@ -14,11 +14,6 @@ const (
 	maxTokenLineBytes    = 256
 )
 
-// ReadLine reads one cooked line from the controlling terminal.
-func ReadLine(t *TTY, prompt string) (string, error) {
-	return ReadLineContext(context.Background(), t, prompt)
-}
-
 // ReadLineContext reads through the TTY-owned pump, so cancellation does not
 // abandon a second reader that could steal bytes from a later raw prompt.
 func ReadLineContext(ctx context.Context, t *TTY, prompt string) (string, error) {
@@ -33,11 +28,6 @@ func ReadLineContext(ctx context.Context, t *TTY, prompt string) (string, error)
 		return "", err
 	}
 	return string(line), nil
-}
-
-// ReadPassword collects a management token without terminal echo.
-func ReadPassword(t *TTY, prompt string) ([]byte, error) {
-	return ReadPasswordContext(context.Background(), t, prompt)
 }
 
 // ReadPasswordContext establishes and records no-echo raw state before it
@@ -86,7 +76,7 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 		overflow = true
 	}
 	for {
-		ev, err := t.ReadEventContext(ctx)
+		ev, err := t.readEventContext(ctx)
 		if err != nil {
 			if err == io.EOF {
 				if overflow {
@@ -103,7 +93,7 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 			return nil, ErrInterrupted
 		}
 		switch ev.Kind {
-		case KindRune:
+		case kindRune:
 			if !overflow {
 				size := utf8.RuneLen(ev.R)
 				if size < 0 || size > limit-len(line) {
@@ -112,7 +102,7 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 					line = utf8.AppendRune(line, ev.R)
 				}
 			}
-		case KindSpace:
+		case kindSpace:
 			if !overflow {
 				if len(line) == limit {
 					reject()
@@ -120,7 +110,7 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 					line = append(line, ' ')
 				}
 			}
-		case KindTab:
+		case kindTab:
 			if !overflow {
 				if len(line) == limit {
 					reject()
@@ -128,28 +118,28 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 					line = append(line, '\t')
 				}
 			}
-		case KindEnter:
+		case kindEnter:
 			if overflow {
 				return nil, ErrInputTooLong
 			}
 			return line, nil
-		case KindBackspace:
+		case kindBackspace:
 			if !overflow {
 				line = trimLastRune(line)
 			}
-		case KindCtrlU:
+		case kindCtrlU:
 			if !overflow {
 				secret.Wipe(line)
 				line = line[:0]
 			}
-		case KindCtrlW:
+		case kindCtrlW:
 			if !overflow {
 				line = trimLastWord(line)
 			}
-		case KindCtrlC, KindCtrlD:
+		case kindCtrlC, kindCtrlD:
 			secret.Wipe(line)
 			return nil, ErrInterrupted
-		case KindPaste:
+		case kindPaste:
 			if !overflow {
 				if len(ev.Paste) > limit-len(line) {
 					reject()
@@ -158,11 +148,11 @@ func (t *TTY) readLineContext(ctx context.Context, limit int) ([]byte, error) {
 				}
 			}
 			secret.Wipe(ev.Paste)
-		case KindInputTooLong:
+		case kindInputTooLong:
 			if !overflow {
 				reject()
 			}
-		case KindCtrlO, KindIgnored:
+		case kindCtrlO, kindIgnored:
 			// These gestures have no line-input meaning.
 		}
 	}

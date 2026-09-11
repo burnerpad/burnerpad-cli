@@ -11,24 +11,6 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// readPhrasePlain is the §7.6 accessibility path as pinned by B24: cooked
-// mode, one word (or the whole phrase) per line, list-validated with a
-// spoken-friendly echo, no ANSI, no cursor addressing. Line validation is
-// atomic like paste (§7.2): a multi-word line commits all tokens or none.
-func readPhrasePlain(r io.Reader, w io.Writer, min int) (*secret.Buffer, error) {
-	br := bufio.NewReader(r)
-	return readPhrasePlainLines(w, min, func() ([]byte, error) {
-		line, err := readLine(br, wordlist.MaxPhraseBytes)
-		if err != nil {
-			if errors.Is(err, ErrInputTooLong) {
-				return nil, err
-			}
-			return nil, ErrInterrupted
-		}
-		return line, nil
-	})
-}
-
 func readPhrasePlainContext(ctx context.Context, t *TTY, min int) (*secret.Buffer, error) {
 	return readPhrasePlainLines(t.out, min, func() ([]byte, error) {
 		return t.readLineContext(ctx, wordlist.MaxPhraseBytes)

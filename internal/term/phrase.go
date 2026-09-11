@@ -46,7 +46,7 @@ type TTY struct {
 	winch     chan struct{}
 	stopWinch func()
 
-	events   chan Event
+	events   chan event
 	pumpOnce sync.Once
 	readErr  error // set by the pump before events is closed
 
@@ -69,19 +69,15 @@ func newTTY(in, out *os.File) *TTY {
 		in:     in,
 		out:    out,
 		winch:  make(chan struct{}, 1),
-		events: make(chan Event, 64),
+		events: make(chan event, 64),
 	}
 }
 
-// Out returns the terminal writer for prompts and screens (never stdout —
-// §5.1 stream discipline).
-func (t *TTY) Out() io.Writer { return t.out }
-
-// MakeRaw puts the terminal in raw mode, enables VT processing where the
+// makeRaw puts the terminal in raw mode, enables VT processing where the
 // platform needs it (§21), and turns bracketed paste on (§7.2 paste row).
 // restore reverses all of it and is idempotent — every exit path, including
 // the signal handler, may call it.
-func (t *TTY) MakeRaw() (restore func(), err error) {
+func (t *TTY) makeRaw() (restore func(), err error) {
 	vtRestore, err := t.enableVT()
 	if err != nil {
 		return nil, err
@@ -209,8 +205,8 @@ func (t *TTY) EmergencyRestore() {
 	t.platformEmergency()
 }
 
-// Size returns the terminal dimensions, 80×24 when they cannot be read.
-func (t *TTY) Size() (w, h int) {
+// size returns the terminal dimensions, 80×24 when they cannot be read.
+func (t *TTY) size() (w, h int) {
 	w, h, err := term.GetSize(int(t.out.Fd()))
 	if err != nil || w <= 0 || h <= 0 {
 		return 80, 24
@@ -218,32 +214,23 @@ func (t *TTY) Size() (w, h int) {
 	return w, h
 }
 
-// SizeChanged yields one (coalesced) tick per terminal resize; on platforms
-// without SIGWINCH it never fires.
-func (t *TTY) SizeChanged() <-chan struct{} { return t.winch }
-
-// ReadEvent returns the next decoded key event, io.EOF at end of input.
-func (t *TTY) ReadEvent() (Event, error) {
-	return t.ReadEventContext(context.Background())
-}
-
-// ReadEventContext returns the next decoded key event or the context cause.
+// readEventContext returns the next decoded key event or the context cause.
 // Cancellation selects directly against the TTY-owned pump; it never starts
 // an operation-local goroutine that could outlive its buffer or terminal mode.
-func (t *TTY) ReadEventContext(ctx context.Context) (Event, error) {
+func (t *TTY) readEventContext(ctx context.Context) (event, error) {
 	if err := ctx.Err(); err != nil {
-		return Event{}, err
+		return event{}, err
 	}
 	t.startPump()
 	select {
 	case <-ctx.Done():
-		return Event{}, ctx.Err()
+		return event{}, ctx.Err()
 	case ev, ok := <-t.events:
 		if !ok {
 			if t.readErr != nil && t.readErr != io.EOF {
-				return Event{}, t.readErr
+				return event{}, t.readErr
 			}
-			return Event{}, io.EOF
+			return event{}, io.EOF
 		}
 		return ev, nil
 	}
@@ -289,7 +276,7 @@ func (t *TTY) startPump() {
 		}()
 		go func() {
 			d := newKeyDecoder()
-			emit := func(evs []Event) {
+			emit := func(evs []event) {
 				for _, e := range evs {
 					t.events <- e
 				}
@@ -325,48 +312,38 @@ func (t *TTY) startPump() {
 	})
 }
 
-// PhraseOpts configures ReadPhrase.
+// PhraseOpts configures ReadPhraseContext.
 type PhraseOpts struct {
-	Min     int  // committed-word gate; ≤ 0 means wordlist.PhraseWords
 	Plain   bool // §7.6 line mode: no raw mode, no ANSI
 	NoColor bool // strip SGR (interaction intact)
 }
 
-// ReadPhrase runs list-locked autocomplete with ghost text and bracketed
-// paste, or the accessible plain line mode, and returns canonical phrase
-// bytes. ErrInterrupted is returned on Ctrl+C or EOF.
+// ReadPhraseContext runs list-locked autocomplete with cancellation for every
+// terminal wait, including the accessible cooked-line fallback. It returns
+// canonical phrase bytes; ErrInterrupted is returned on Ctrl+C or EOF.
 // Raw-mode failure (legacy conhost, no VT) falls back to plain per §7.6.
-func ReadPhrase(t *TTY, o PhraseOpts) (*secret.Buffer, error) {
-	return ReadPhraseContext(context.Background(), t, o)
-}
-
-// ReadPhraseContext is ReadPhrase with cancellation for every terminal wait,
-// including the accessible cooked-line fallback.
 func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffer, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	min := o.Min
-	if min <= 0 {
-		min = wordlist.PhraseWords
-	}
+	const min = wordlist.PhraseWords
 	if o.Plain {
 		return readPhrasePlainContext(ctx, t, min)
 	}
-	if w, _ := t.Size(); w < narrowWidth {
+	if w, _ := t.size(); w < narrowWidth {
 		return readPhrasePlainContext(ctx, t, min)
 	}
-	restore, err := t.MakeRaw()
+	restore, err := t.makeRaw()
 	if err != nil {
 		return readPhrasePlainContext(ctx, t, min)
 	}
 	defer restore()
 
-	m := NewMintingMachine(min)
-	cur := Output{}
+	m := newMachine(min)
+	cur := machineOutput{}
 	io.WriteString(t.out, "Passphrase — type each word; Space or Tab commits it once it's unambiguous.\r\n")
 	paint := func() {
-		label := promptLabel(len(cur.Committed), min)
+		label := promptLabel(len(cur.committed), min)
 		paintPrompt(t, promptView{label: label, out: cur, noColor: o.NoColor})
 	}
 	paint()
@@ -380,23 +357,23 @@ func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffe
 			return nil, ErrInterrupted
 		}
 		switch ev.Kind {
-		case KindCtrlC:
+		case kindCtrlC:
 			finishPromptLine(t)
 			return nil, ErrInterrupted
-		case KindCtrlD, KindIgnored:
+		case kindCtrlD, kindIgnored:
 			continue
 		}
-		cur = m.Handle(ev)
-		if ev.Kind == KindPaste {
+		cur = m.handle(ev)
+		if ev.Kind == kindPaste {
 			secret.Wipe(ev.Paste)
 		}
-		if cur.Bell {
+		if cur.bell {
 			io.WriteString(t.out, "\a")
 		}
 		paint()
-		if cur.Done {
+		if cur.done {
 			finishPromptLine(t)
-			return secret.New(cur.Phrase), nil
+			return secret.New(cur.phrase), nil
 		}
 	}
 }
@@ -404,24 +381,24 @@ func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffe
 // readEventOrResizeContext blocks for the next event, repainting on every
 // resize tick in between (§7.2: "SIGWINCH triggers one repaint at the new
 // width").
-func (t *TTY) readEventOrResizeContext(ctx context.Context, repaint func()) (Event, error) {
+func (t *TTY) readEventOrResizeContext(ctx context.Context, repaint func()) (event, error) {
 	if err := ctx.Err(); err != nil {
-		return Event{}, err
+		return event{}, err
 	}
 	t.startPump()
 	for {
 		if err := ctx.Err(); err != nil {
-			return Event{}, err
+			return event{}, err
 		}
 		select {
 		case <-ctx.Done():
-			return Event{}, ctx.Err()
+			return event{}, ctx.Err()
 		case ev, ok := <-t.events:
 			if !ok {
 				if t.readErr != nil && t.readErr != io.EOF {
-					return Event{}, t.readErr
+					return event{}, t.readErr
 				}
-				return Event{}, io.EOF
+				return event{}, io.EOF
 			}
 			return ev, nil
 		case <-t.winch:
@@ -433,7 +410,7 @@ func (t *TTY) readEventOrResizeContext(ctx context.Context, repaint func()) (Eve
 // promptView is one paint of the two-row prompt surface.
 type promptView struct {
 	label   string
-	out     Output
+	out     machineOutput
 	noColor bool
 }
 
@@ -442,9 +419,9 @@ type promptView struct {
 // at the bottom row cannot desynchronize it. The cursor ends between the
 // typed text and the ghost.
 func paintPrompt(t *TTY, v promptView) {
-	width, _ := t.Size()
-	buf, ghost := v.out.Buf, v.out.Ghost
-	pre, gh := renderLine(v.label, v.out.Committed, buf, ghost, width)
+	width, _ := t.size()
+	buf, ghost := v.out.buf, v.out.ghost
+	pre, gh := renderLine(v.label, v.out.committed, buf, ghost, width)
 
 	var sb strings.Builder
 	sb.WriteString("\r\x1b[K")
@@ -461,7 +438,7 @@ func paintPrompt(t *TTY, v promptView) {
 	// Status row below, then return via relative moves (LF scrolls at the
 	// bottom row and ESC[A still lands back on the prompt line).
 	sb.WriteString("\n\r\x1b[K")
-	sb.WriteString(truncateRunes(v.out.Status, width-1))
+	sb.WriteString(truncateRunes(v.out.status, width-1))
 	sb.WriteString("\x1b[A\r")
 	if n := utf8.RuneCountInString(pre); n > 0 {
 		writeCursorRight(&sb, n)

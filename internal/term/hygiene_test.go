@@ -24,8 +24,8 @@ func TestFlushWipesAbandonedPaste(t *testing.T) {
 	}
 	held := d.paste // alias the payload buffer before it is abandoned
 	evs := d.flush()
-	if len(evs) != 1 || evs[0].Kind != KindIgnored {
-		t.Fatalf("flush events = %v, want one KindIgnored", evs)
+	if len(evs) != 1 || evs[0].Kind != kindIgnored {
+		t.Fatalf("flush events = %v, want one kindIgnored", evs)
 	}
 	for i, b := range held {
 		if b != 0 {
@@ -38,11 +38,11 @@ func TestFlushWipesAbandonedPaste(t *testing.T) {
 // never touch a delivered payload).
 func TestCompletedPasteSurvivesDelivery(t *testing.T) {
 	d := newKeyDecoder()
-	var got []Event
+	var got []event
 	for _, b := range []byte("\x1b[200~tulip\x1b[201~") {
 		got = append(got, d.feed(b)...)
 	}
-	if len(got) != 1 || got[0].Kind != KindPaste || string(got[0].Paste) != "tulip" {
+	if len(got) != 1 || got[0].Kind != kindPaste || string(got[0].Paste) != "tulip" {
 		t.Fatalf("paste delivery = %v", got)
 	}
 }
@@ -51,12 +51,12 @@ func TestCompletedPasteSurvivesDelivery(t *testing.T) {
 // wipe them (§12: "the consumer wipes it").
 func TestViewerWipesPasteEvents(t *testing.T) {
 	payload := []byte("pasted secret material")
-	events := []Event{
-		{Kind: KindPaste, Paste: payload},
-		{Kind: KindRune, R: 'q'},
+	events := []event{
+		{Kind: kindPaste, Paste: payload},
+		{Kind: kindRune, R: 'q'},
 	}
 	i := 0
-	next := func() (Event, error) {
+	next := func() (event, error) {
 		ev := events[i]
 		i++
 		return ev, nil
@@ -105,25 +105,25 @@ func TestRejectedPhraseMaterialIsNotReported(t *testing.T) {
 		{name: "Unicode", rejected: '☠', attempted: "wa☠"},
 	} {
 		t.Run("typed "+test.name, func(t *testing.T) {
-			machine := NewMachine(0)
-			machine.Handle(rn('w'))
-			machine.Handle(rn('a'))
-			out := machine.Handle(rn(test.rejected))
-			if !out.Bell || out.Buf != "wa" || out.Status != rejectedCharacterHint {
+			machine := newMachine(0)
+			machine.handle(rn('w'))
+			machine.handle(rn('a'))
+			out := machine.handle(rn(test.rejected))
+			if !out.bell || out.buf != "wa" || out.status != rejectedCharacterHint {
 				t.Fatalf("rejection = %+v", out)
 			}
-			if strings.Contains(out.Status, test.attempted) {
-				t.Fatalf("status disclosed rejected input %q: %q", test.attempted, out.Status)
+			if strings.Contains(out.status, test.attempted) {
+				t.Fatalf("status disclosed rejected input %q: %q", test.attempted, out.status)
 			}
 		})
 	}
 
-	machine := NewMachine(0)
-	machine.Handle(paste("apple"))
-	machine.Handle(rn('a'))
-	machine.Handle(rn('p'))
-	out := machine.Handle(rn('p'))
-	if !out.Bell || out.Status != rejectedCharacterHint || strings.Contains(out.Status, "app") {
+	machine := newMachine(0)
+	machine.handle(paste("apple"))
+	machine.handle(rn('a'))
+	machine.handle(rn('p'))
+	out := machine.handle(rn('p'))
+	if !out.bell || out.status != rejectedCharacterHint || strings.Contains(out.status, "app") {
 		t.Fatalf("committed-candidate rejection disclosed input: %+v", out)
 	}
 
@@ -131,8 +131,8 @@ func TestRejectedPhraseMaterialIsNotReported(t *testing.T) {
 		"acrobat distinctive-private-canary cufflink",
 		"distinctive-private-canary distinctive-private-canary",
 	} {
-		out = NewMachine(0).Handle(paste(input))
-		if !out.Bell || strings.Contains(out.Status, "distinctive-private-canary") {
+		out = newMachine(0).handle(paste(input))
+		if !out.bell || strings.Contains(out.status, "distinctive-private-canary") {
 			t.Fatalf("paste rejection disclosed input %q: %+v", input, out)
 		}
 	}

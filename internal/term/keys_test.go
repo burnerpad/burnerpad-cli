@@ -8,8 +8,8 @@ import (
 
 // feedAll runs the byte stream through a fresh decoder and returns every
 // event (chunking is irrelevant: the decoder is fed byte-by-byte by design).
-func feedAll(d *keyDecoder, b []byte) []Event {
-	var out []Event
+func feedAll(d *keyDecoder, b []byte) []event {
+	var out []event
 	for _, c := range b {
 		out = append(out, d.feed(c)...)
 	}
@@ -20,25 +20,25 @@ func TestDecoderSingleBytes(t *testing.T) {
 	cases := []struct {
 		name string
 		in   []byte
-		want []Event
+		want []event
 	}{
-		{"letters", []byte("acr"), []Event{rn('a'), rn('c'), rn('r')}},
-		{"space", []byte{' '}, []Event{kd(KindSpace)}},
-		{"tab", []byte{'\t'}, []Event{kd(KindTab)}},
-		{"CR is Enter", []byte{'\r'}, []Event{kd(KindEnter)}},
-		{"LF is Enter", []byte{'\n'}, []Event{kd(KindEnter)}},
-		{"DEL is Backspace", []byte{0x7f}, []Event{kd(KindBackspace)}},
-		{"BS is Backspace", []byte{0x08}, []Event{kd(KindBackspace)}},
-		{"Ctrl+C", []byte{0x03}, []Event{kd(KindCtrlC)}},
-		{"Ctrl+D", []byte{0x04}, []Event{kd(KindCtrlD)}},
-		{"Ctrl+O", []byte{0x0f}, []Event{kd(KindCtrlO)}},
-		{"Ctrl+U", []byte{0x15}, []Event{kd(KindCtrlU)}},
-		{"Ctrl+W", []byte{0x17}, []Event{kd(KindCtrlW)}},
-		{"other C0 ignored", []byte{0x01, 0x02, 0x1a}, []Event{kd(KindIgnored), kd(KindIgnored), kd(KindIgnored)}},
-		{"punctuation is a rune", []byte{'!'}, []Event{rn('!')}},
-		{"two-byte UTF-8", []byte("é"), []Event{rn('é')}},
-		{"three-byte UTF-8", []byte("…"), []Event{rn('…')}},
-		{"four-byte UTF-8", []byte("🎉"), []Event{rn('🎉')}},
+		{"letters", []byte("acr"), []event{rn('a'), rn('c'), rn('r')}},
+		{"space", []byte{' '}, []event{kd(kindSpace)}},
+		{"tab", []byte{'\t'}, []event{kd(kindTab)}},
+		{"CR is Enter", []byte{'\r'}, []event{kd(kindEnter)}},
+		{"LF is Enter", []byte{'\n'}, []event{kd(kindEnter)}},
+		{"DEL is Backspace", []byte{0x7f}, []event{kd(kindBackspace)}},
+		{"BS is Backspace", []byte{0x08}, []event{kd(kindBackspace)}},
+		{"Ctrl+C", []byte{0x03}, []event{kd(kindCtrlC)}},
+		{"Ctrl+D", []byte{0x04}, []event{kd(kindCtrlD)}},
+		{"Ctrl+O", []byte{0x0f}, []event{kd(kindCtrlO)}},
+		{"Ctrl+U", []byte{0x15}, []event{kd(kindCtrlU)}},
+		{"Ctrl+W", []byte{0x17}, []event{kd(kindCtrlW)}},
+		{"other C0 ignored", []byte{0x01, 0x02, 0x1a}, []event{kd(kindIgnored), kd(kindIgnored), kd(kindIgnored)}},
+		{"punctuation is a rune", []byte{'!'}, []event{rn('!')}},
+		{"two-byte UTF-8", []byte("é"), []event{rn('é')}},
+		{"three-byte UTF-8", []byte("…"), []event{rn('…')}},
+		{"four-byte UTF-8", []byte("🎉"), []event{rn('🎉')}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestDecoderSingleBytes(t *testing.T) {
 
 func TestDecoderCoalescesCookedCRLF(t *testing.T) {
 	got := feedAll(newKeyDecoder(), []byte("a\r\nb\n"))
-	want := []Event{rn('a'), kd(KindEnter), rn('b'), kd(KindEnter)}
+	want := []event{rn('a'), kd(kindEnter), rn('b'), kd(kindEnter)}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("events = %+v, want %+v", got, want)
 	}
@@ -85,7 +85,7 @@ func TestDecoderSwallowsSequencesWhole(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := feedAll(newKeyDecoder(), tc.in)
-			want := []Event{kd(KindIgnored)}
+			want := []event{kd(kindIgnored)}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("events = %+v, want exactly one ignore", got)
 			}
@@ -97,14 +97,14 @@ func TestDecoderSwallowsSequencesWhole(t *testing.T) {
 // byte-by-byte, so a chunk boundary can never tear a sequence.
 func TestDecoderSplitAcrossReads(t *testing.T) {
 	d := newKeyDecoder()
-	var got []Event
+	var got []event
 	got = append(got, feedAll(d, []byte("\x1b["))...) // partial CSI…
 	if len(got) != 0 || !d.pending() {
 		t.Fatalf("mid-CSI: events=%+v pending=%v", got, d.pending())
 	}
 	got = append(got, feedAll(d, []byte("A"))...) // …completed later
 	got = append(got, feedAll(d, []byte("q"))...)
-	want := []Event{kd(KindIgnored), rn('q')}
+	want := []event{kd(kindIgnored), rn('q')}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("events = %+v, want %+v", got, want)
 	}
@@ -116,7 +116,7 @@ func TestDecoderSplitAcrossReads(t *testing.T) {
 		t.Fatalf("mid-rune: events=%+v pending=%v", got, d.pending())
 	}
 	got = feedAll(d, []byte{0xa9})
-	if !reflect.DeepEqual(got, []Event{rn('é')}) {
+	if !reflect.DeepEqual(got, []event{rn('é')}) {
 		t.Fatalf("events = %+v", got)
 	}
 }
@@ -124,7 +124,7 @@ func TestDecoderSplitAcrossReads(t *testing.T) {
 func TestDecoderBracketedPaste(t *testing.T) {
 	t.Run("simple payload", func(t *testing.T) {
 		got := feedAll(newKeyDecoder(), []byte("\x1b[200~acrobat cufflink\x1b[201~q"))
-		want := []Event{{Kind: KindPaste, Paste: []byte("acrobat cufflink")}, rn('q')}
+		want := []event{{Kind: kindPaste, Paste: []byte("acrobat cufflink")}, rn('q')}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("events = %+v, want %+v", got, want)
 		}
@@ -132,7 +132,7 @@ func TestDecoderBracketedPaste(t *testing.T) {
 	t.Run("payload containing ESC bytes", func(t *testing.T) {
 		payload := "a\x1b[Bz\x1b"
 		got := feedAll(newKeyDecoder(), []byte("\x1b[200~"+payload+"\x1b[201~"))
-		want := []Event{{Kind: KindPaste, Paste: []byte(payload)}}
+		want := []event{{Kind: kindPaste, Paste: []byte(payload)}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("events = %+v, want %+v", got, want)
 		}
@@ -140,21 +140,21 @@ func TestDecoderBracketedPaste(t *testing.T) {
 	t.Run("payload with a near-terminator prefix", func(t *testing.T) {
 		payload := "x\x1b[20A"
 		got := feedAll(newKeyDecoder(), []byte("\x1b[200~"+payload+"\x1b[201~"))
-		want := []Event{{Kind: KindPaste, Paste: []byte(payload)}}
+		want := []event{{Kind: kindPaste, Paste: []byte(payload)}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("events = %+v, want %+v", got, want)
 		}
 	})
 	t.Run("empty paste", func(t *testing.T) {
 		got := feedAll(newKeyDecoder(), []byte("\x1b[200~\x1b[201~"))
-		if len(got) != 1 || got[0].Kind != KindPaste || len(got[0].Paste) != 0 {
-			t.Fatalf("events = %+v, want one empty KindPaste", got)
+		if len(got) != 1 || got[0].Kind != kindPaste || len(got[0].Paste) != 0 {
+			t.Fatalf("events = %+v, want one empty kindPaste", got)
 		}
 	})
 	t.Run("paste payload is not key-decoded", func(t *testing.T) {
 		// Control bytes inside a paste stay payload, never events.
 		got := feedAll(newKeyDecoder(), []byte("\x1b[200~a\x03b\r\x1b[201~"))
-		want := []Event{{Kind: KindPaste, Paste: []byte("a\x03b\r")}}
+		want := []event{{Kind: kindPaste, Paste: []byte("a\x03b\r")}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("events = %+v, want %+v", got, want)
 		}
@@ -174,7 +174,7 @@ func TestDecoderBoundsBracketedPasteAndRecovers(t *testing.T) {
 		wire := append([]byte("\x1b[200~"), payload...)
 		wire = append(wire, []byte(pasteEnd)...)
 		got := feedAll(newKeyDecoder(), wire)
-		if len(got) != 1 || got[0].Kind != KindPaste || !bytes.Equal(got[0].Paste, payload) {
+		if len(got) != 1 || got[0].Kind != kindPaste || !bytes.Equal(got[0].Paste, payload) {
 			t.Fatalf("exact-limit events = %+v", got)
 		}
 	})
@@ -201,10 +201,10 @@ func TestDecoderBoundsBracketedPasteAndRecovers(t *testing.T) {
 			t.Fatal("retained paste bytes were not wiped on overflow")
 		}
 		got := feedAll(d, append([]byte("ignored after overflow"), []byte(pasteEnd)...))
-		if !reflect.DeepEqual(got, []Event{kd(KindInputTooLong)}) {
+		if !reflect.DeepEqual(got, []event{kd(kindInputTooLong)}) {
 			t.Fatalf("overflow completion = %+v", got)
 		}
-		if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []Event{rn('q')}) {
+		if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []event{rn('q')}) {
 			t.Fatalf("decoder unusable after overflow: %+v", got)
 		}
 	})
@@ -214,14 +214,14 @@ func TestDecoderInvalidUTF8(t *testing.T) {
 	cases := []struct {
 		name string
 		in   []byte
-		want []Event
+		want []event
 	}{
-		{"invalid lead 0xFF", []byte{0xff}, []Event{kd(KindIgnored)}},
-		{"lone continuation", []byte{0xaf}, []Event{kd(KindIgnored)}},
-		{"overlong lead 0xC0", []byte{0xc0, 0xaf}, []Event{kd(KindIgnored), kd(KindIgnored)}},
-		{"torn rune then ASCII", []byte{0xc3, '('}, []Event{kd(KindIgnored), rn('(')}},
-		{"surrogate half", []byte{0xed, 0xa0, 0x80}, []Event{kd(KindIgnored)}},
-		{"beyond U+10FFFF lead", []byte{0xf5, 0x80}, []Event{kd(KindIgnored), kd(KindIgnored)}},
+		{"invalid lead 0xFF", []byte{0xff}, []event{kd(kindIgnored)}},
+		{"lone continuation", []byte{0xaf}, []event{kd(kindIgnored)}},
+		{"overlong lead 0xC0", []byte{0xc0, 0xaf}, []event{kd(kindIgnored), kd(kindIgnored)}},
+		{"torn rune then ASCII", []byte{0xc3, '('}, []event{kd(kindIgnored), rn('(')}},
+		{"surrogate half", []byte{0xed, 0xa0, 0x80}, []event{kd(kindIgnored)}},
+		{"beyond U+10FFFF lead", []byte{0xf5, 0x80}, []event{kd(kindIgnored), kd(kindIgnored)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,13 +254,13 @@ func TestDecoderFlush(t *testing.T) {
 			if !d.pending() {
 				t.Fatal("decoder should be pending")
 			}
-			if got := d.flush(); !reflect.DeepEqual(got, []Event{kd(KindIgnored)}) {
+			if got := d.flush(); !reflect.DeepEqual(got, []event{kd(kindIgnored)}) {
 				t.Fatalf("flush = %+v", got)
 			}
 			if d.pending() {
 				t.Fatal("still pending after flush")
 			}
-			if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []Event{rn('q')}) {
+			if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []event{rn('q')}) {
 				t.Fatalf("decoder unusable after flush: %+v", got)
 			}
 		})
@@ -278,17 +278,17 @@ func TestDecoderCSIBound(t *testing.T) {
 	// ESC + '[' + 15 parameter bytes = 17 > 16: the 15th parameter byte
 	// trips the bound.
 	in := append([]byte("\x1b["), []byte("1;1;1;1;1;1;1;1")...)
-	var got []Event
+	var got []event
 	for _, b := range in {
 		got = append(got, d.feed(b)...)
 	}
-	if !reflect.DeepEqual(got, []Event{kd(KindIgnored)}) {
+	if !reflect.DeepEqual(got, []event{kd(kindIgnored)}) {
 		t.Fatalf("overlong CSI: events = %+v, want one ignore", got)
 	}
 	if d.pending() {
 		t.Fatal("decoder stuck pending after bound hit")
 	}
-	if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []Event{rn('q')}) {
+	if got := feedAll(d, []byte("q")); !reflect.DeepEqual(got, []event{rn('q')}) {
 		t.Fatalf("decoder unusable after bound: %+v", got)
 	}
 }

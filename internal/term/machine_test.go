@@ -11,9 +11,9 @@ import (
 
 // --- tiny step DSL for table-driven event tests (ported from the prototype) --
 
-func rn(r rune) Event      { return Event{Kind: KindRune, R: r} }
-func kd(k EventKind) Event { return Event{Kind: k} }
-func paste(s string) Event { return Event{Kind: KindPaste, Paste: []byte(s)} }
+func rn(r rune) event      { return event{Kind: kindRune, R: r} }
+func kd(k eventKind) event { return event{Kind: k} }
+func paste(s string) event { return event{Kind: kindPaste, Paste: []byte(s)} }
 
 type expect struct {
 	buf       *string
@@ -25,7 +25,7 @@ type expect struct {
 }
 
 type step struct {
-	ev Event
+	ev event
 	expect
 }
 
@@ -40,27 +40,27 @@ func typeRunes(s string) []step {
 	return out
 }
 
-func runSteps(t *testing.T, m *Machine, steps []step) {
+func runSteps(t *testing.T, m *machine, steps []step) {
 	t.Helper()
 	for i, st := range steps {
-		out := m.Handle(st.ev)
-		if st.buf != nil && out.Buf != *st.buf {
-			t.Fatalf("step %d (%+v): buf = %q, want %q", i, st.ev, out.Buf, *st.buf)
+		out := m.handle(st.ev)
+		if st.buf != nil && out.buf != *st.buf {
+			t.Fatalf("step %d (%+v): buf = %q, want %q", i, st.ev, out.buf, *st.buf)
 		}
-		if st.ghost != nil && out.Ghost != *st.ghost {
-			t.Fatalf("step %d (%+v): ghost = %q, want %q", i, st.ev, out.Ghost, *st.ghost)
+		if st.ghost != nil && out.ghost != *st.ghost {
+			t.Fatalf("step %d (%+v): ghost = %q, want %q", i, st.ev, out.ghost, *st.ghost)
 		}
-		if st.bell != nil && out.Bell != *st.bell {
-			t.Fatalf("step %d (%+v): bell = %v, want %v (status %q)", i, st.ev, out.Bell, *st.bell, out.Status)
+		if st.bell != nil && out.bell != *st.bell {
+			t.Fatalf("step %d (%+v): bell = %v, want %v (status %q)", i, st.ev, out.bell, *st.bell, out.status)
 		}
-		if st.status != nil && out.Status != *st.status {
-			t.Fatalf("step %d (%+v): status = %q, want %q", i, st.ev, out.Status, *st.status)
+		if st.status != nil && out.status != *st.status {
+			t.Fatalf("step %d (%+v): status = %q, want %q", i, st.ev, out.status, *st.status)
 		}
-		if st.committed != nil && !slices.Equal(out.Committed, st.committed) {
-			t.Fatalf("step %d (%+v): committed = %v, want %v", i, st.ev, out.Committed, st.committed)
+		if st.committed != nil && !slices.Equal(out.committed, st.committed) {
+			t.Fatalf("step %d (%+v): committed = %v, want %v", i, st.ev, out.committed, st.committed)
 		}
-		if st.done != nil && out.Done != *st.done {
-			t.Fatalf("step %d (%+v): done = %v, want %v", i, st.ev, out.Done, *st.done)
+		if st.done != nil && out.done != *st.done {
+			t.Fatalf("step %d (%+v): done = %v, want %v", i, st.ev, out.done, *st.done)
 		}
 	}
 }
@@ -86,7 +86,7 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "uppercase lowercased silently",
 			steps: append(typeRunes("ACR"),
-				step{ev: kd(KindSpace), expect: expect{committed: []string{"acrobat"}, buf: sp("")}}),
+				step{ev: kd(kindSpace), expect: expect{committed: []string{"acrobat"}, buf: sp("")}}),
 		},
 		{
 			name: "uppercase folds before candidate check (ghost appears)",
@@ -116,39 +116,39 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "Space commits unique word; counter advances via committed",
 			steps: append(typeRunes("acr"),
-				step{ev: kd(KindSpace), expect: expect{committed: []string{"acrobat"}, buf: sp(""), ghost: sp(""), bell: bp(false)}}),
+				step{ev: kd(kindSpace), expect: expect{committed: []string{"acrobat"}, buf: sp(""), ghost: sp(""), bell: bp(false)}}),
 		},
 		{
 			name: "Space on ambiguous buf bells with first<=5 candidates",
 			steps: append(typeRunes("ap"),
 				// prefix "ap": apartment apnea apostrophe apple apricot — exactly 5, no ellipsis
-				step{ev: kd(KindSpace), expect: expect{bell: bp(true), buf: sp("ap"),
+				step{ev: kd(kindSpace), expect: expect{bell: bp(true), buf: sp("ap"),
 					status: sp("still ambiguous: apartment apnea apostrophe apple apricot")}}),
 		},
 		{
 			name: "Space on ambiguous buf with >5 candidates gets ellipsis",
 			steps: append(typeRunes("a"),
-				step{ev: kd(KindSpace), expect: expect{bell: bp(true),
+				step{ev: kd(kindSpace), expect: expect{bell: bp(true),
 					status: sp("still ambiguous: aardvark abandoned abbreviate abdomen abhorrence …")}}),
 		},
 		{
 			name: "Space on empty buf ignored",
 			steps: []step{
-				{ev: kd(KindSpace), expect: expect{buf: sp(""), bell: bp(false), status: sp(""), committed: []string{}}},
+				{ev: kd(kindSpace), expect: expect{buf: sp(""), bell: bp(false), status: sp(""), committed: []string{}}},
 			},
 		},
 		{
 			name: "Tab extends to longest common prefix (q -> qu, still 4 candidates)",
 			steps: []step{
 				{ev: rn('q'), expect: expect{buf: sp("q")}},
-				{ev: kd(KindTab), expect: expect{buf: sp("qu"), committed: []string{},
+				{ev: kd(kindTab), expect: expect{buf: sp("qu"), committed: []string{},
 					status: sp("4 match: quarters quesadilla quilt …")}},
 			},
 		},
 		{
 			name: "Tab accepts a unique candidate: commits it and clears buf for the next word",
 			steps: append(typeRunes("aq"), // aquamarine is unique at "aq"
-				step{ev: kd(KindTab), expect: expect{committed: []string{"aquamarine"}, buf: sp(""),
+				step{ev: kd(kindTab), expect: expect{committed: []string{"aquamarine"}, buf: sp(""),
 					ghost: sp(""), bell: bp(false), status: sp("")}},
 				// buf is empty, so the next rune starts word 2 with no Space needed
 				step{ev: rn('t'), expect: expect{committed: []string{"aquamarine"}, buf: sp("t")}}),
@@ -156,7 +156,7 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "Tab-committed word excludes itself from later candidates (like Space)",
 			steps: append(typeRunes("aq"),
-				step{ev: kd(KindTab), expect: expect{committed: []string{"aquamarine"}}},
+				step{ev: kd(kindTab), expect: expect{committed: []string{"aquamarine"}}},
 				step{ev: rn('a'), expect: expect{buf: sp("a")}},
 				step{ev: rn('q'), expect: expect{buf: sp("a"), bell: bp(true),
 					status: sp(rejectedCharacterHint)}}),
@@ -165,64 +165,64 @@ func TestKeyTable(t *testing.T) {
 			name: "Tab at the gate reports the same commit status Space does",
 			steps: append([]step{{ev: paste("acrobat blender cufflink dishcloth eggnog fondue")}},
 				append(typeRunes("tul"),
-					step{ev: kd(KindTab), expect: expect{buf: sp(""), committed: []string{"acrobat",
+					step{ev: kd(kindTab), expect: expect{buf: sp(""), committed: []string{"acrobat",
 						"blender", "cufflink", "dishcloth", "eggnog", "fondue", "tulip"},
 						status: sp("7 words · " + submitHint)}})...),
 		},
 		{
 			name: "Tab on empty buf is a no-op",
 			steps: []step{
-				{ev: kd(KindTab), expect: expect{buf: sp(""), bell: bp(false), committed: []string{}}},
+				{ev: kd(kindTab), expect: expect{buf: sp(""), bell: bp(false), committed: []string{}}},
 			},
 		},
 		{
 			name: "Enter commits unique buf ONLY; below 7 words reports the count (A12+B3)",
 			steps: append(typeRunes("acr"),
-				step{ev: kd(KindEnter), expect: expect{committed: []string{"acrobat"}, buf: sp(""),
+				step{ev: kd(kindEnter), expect: expect{committed: []string{"acrobat"}, buf: sp(""),
 					done: bp(false), status: sp("1/7 — need at least 7 words" + ctrlOHint)}}),
 		},
 		{
 			name: "Enter with empty buf below 7 words: status, no bell, no done",
 			steps: []step{
-				{ev: kd(KindEnter), expect: expect{done: bp(false), bell: bp(false),
+				{ev: kd(kindEnter), expect: expect{done: bp(false), bell: bp(false),
 					status: sp("0/7 — need at least 7 words" + ctrlOHint)}},
 			},
 		},
 		{
 			name: "Enter on ambiguous buf bells",
 			steps: append(typeRunes("ap"),
-				step{ev: kd(KindEnter), expect: expect{bell: bp(true), done: bp(false), buf: sp("ap")}}),
+				step{ev: kd(kindEnter), expect: expect{bell: bp(true), done: bp(false), buf: sp("ap")}}),
 		},
 		{
 			name: "Backspace deletes last char of buf",
 			steps: append(typeRunes("tup"),
-				step{ev: kd(KindBackspace), expect: expect{buf: sp("tu"), ghost: sp("")}}),
+				step{ev: kd(kindBackspace), expect: expect{buf: sp("tu"), ghost: sp("")}}),
 		},
 		{
 			name: "Backspace on empty buf un-commits previous word into buf",
 			steps: append(typeRunes("acr"),
-				step{ev: kd(KindSpace), expect: expect{committed: []string{"acrobat"}}},
-				step{ev: kd(KindBackspace), expect: expect{committed: []string{}, buf: sp("acrobat")}},
+				step{ev: kd(kindSpace), expect: expect{committed: []string{"acrobat"}}},
+				step{ev: kd(kindBackspace), expect: expect{committed: []string{}, buf: sp("acrobat")}},
 				// the un-committed word is editable text: shave it down and go elsewhere
-				step{ev: kd(KindBackspace), expect: expect{buf: sp("acroba")}},
+				step{ev: kd(kindBackspace), expect: expect{buf: sp("acroba")}},
 			),
 		},
 		{
 			name: "Backspace on empty buf with nothing committed is a no-op",
 			steps: []step{
-				{ev: kd(KindBackspace), expect: expect{buf: sp(""), bell: bp(false), committed: []string{}}},
+				{ev: kd(kindBackspace), expect: expect{buf: sp(""), bell: bp(false), committed: []string{}}},
 			},
 		},
 		{
 			name: "Ctrl+W clears buf; committed untouched",
 			steps: append(typeRunes("acr"),
-				step{ev: kd(KindCtrlW), expect: expect{buf: sp(""), committed: []string{}}}),
+				step{ev: kd(kindCtrlW), expect: expect{buf: sp(""), committed: []string{}}}),
 		},
 		{
 			name: "Ctrl+W on empty buf deletes last committed word entirely",
 			steps: []step{
 				{ev: paste("acrobat cufflink"), expect: expect{committed: []string{"acrobat", "cufflink"}}},
-				{ev: kd(KindCtrlW), expect: expect{committed: []string{"acrobat"}, buf: sp("")}},
+				{ev: kd(kindCtrlW), expect: expect{committed: []string{"acrobat"}, buf: sp("")}},
 			},
 		},
 		{
@@ -230,7 +230,7 @@ func TestKeyTable(t *testing.T) {
 			steps: []step{
 				{ev: paste("acrobat")},
 				{ev: rn('t'), expect: expect{buf: sp("t")}},
-				{ev: kd(KindCtrlU), expect: expect{buf: sp(""), committed: []string{"acrobat"}}},
+				{ev: kd(kindCtrlU), expect: expect{buf: sp(""), committed: []string{"acrobat"}}},
 			},
 		},
 		{
@@ -293,7 +293,7 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "Ctrl+O cannot leave list-locked entry",
 			steps: []step{
-				{ev: kd(KindCtrlO), expect: expect{buf: sp(""), bell: bp(true),
+				{ev: kd(kindCtrlO), expect: expect{buf: sp(""), bell: bp(true),
 					status: sp("every passphrase word must be on the Burnerpad word list")}},
 			},
 		},
@@ -319,20 +319,20 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "3-char word: unique at keystroke 3 with EMPTY ghost, Space commits",
 			steps: append(typeRunes("cup"),
-				step{ev: kd(KindSpace), expect: expect{committed: []string{"cup"}, buf: sp("")}}),
+				step{ev: kd(kindSpace), expect: expect{committed: []string{"cup"}, buf: sp("")}}),
 		},
 		{
 			name: "Ctrl+C, Ctrl+D and ignored events are state no-ops",
 			steps: append(typeRunes("acr"),
-				step{ev: kd(KindCtrlC), expect: expect{buf: sp("acr"), ghost: sp("obat"), bell: bp(false)}},
-				step{ev: kd(KindCtrlD), expect: expect{buf: sp("acr")}},
-				step{ev: kd(KindIgnored), expect: expect{buf: sp("acr"), committed: []string{}}}),
+				step{ev: kd(kindCtrlC), expect: expect{buf: sp("acr"), ghost: sp("obat"), bell: bp(false)}},
+				step{ev: kd(kindCtrlD), expect: expect{buf: sp("acr")}},
+				step{ev: kd(kindIgnored), expect: expect{buf: sp("acr"), committed: []string{}}}),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			runSteps(t, NewMachine(0), tc.steps)
+			runSteps(t, newMachine(0), tc.steps)
 		})
 	}
 }
@@ -342,25 +342,25 @@ func TestKeyTable(t *testing.T) {
 // prototype allowed commit+submit in one keystroke; amendment A12 overrode
 // that, and this test pins the amended rule.)
 func TestEnterCommitsSeventhWordThenSecondEnterSubmits(t *testing.T) {
-	m := NewMachine(0)
-	out := m.Handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
-	if len(out.Committed) != 6 {
-		t.Fatalf("setup: committed %v", out.Committed)
+	m := newMachine(0)
+	out := m.handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
+	if len(out.committed) != 6 {
+		t.Fatalf("setup: committed %v", out.committed)
 	}
 	runSteps(t, m, typeRunes("wol"))
-	out = m.Handle(kd(KindEnter))
-	if out.Done {
+	out = m.handle(kd(kindEnter))
+	if out.done {
 		t.Fatal("A12: Enter with non-empty buf must commit only, never submit")
 	}
-	if want := "7 words · Enter submits — keep typing if the phrase was longer"; out.Status != want {
-		t.Fatalf("commit status = %q, want %q", out.Status, want)
+	if want := "7 words · Enter submits — keep typing if the phrase was longer"; out.status != want {
+		t.Fatalf("commit status = %q, want %q", out.status, want)
 	}
-	out = m.Handle(kd(KindEnter))
-	if !out.Done {
+	out = m.handle(kd(kindEnter))
+	if !out.done {
 		t.Fatal("second Enter with empty buf at 7 words: done = false")
 	}
 	want := "acrobat cufflink dresser osmosis riverboat tulip wolverine"
-	if got := string(out.Phrase); got != want {
+	if got := string(out.phrase); got != want {
 		t.Fatalf("phrase = %q, want %q", got, want)
 	}
 }
@@ -375,15 +375,15 @@ func TestSubmissionHintIsOperationNeutral(t *testing.T) {
 
 // Enter gating: exactly at 7 committed + empty buf → done; at 6 → status.
 func TestEnterGating(t *testing.T) {
-	m := NewMachine(0)
-	m.Handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
-	out := m.Handle(kd(KindEnter))
-	if out.Done || out.Status != "6/7 — need at least 7 words"+ctrlOHint {
-		t.Fatalf("at 6 words: done=%v status=%q", out.Done, out.Status)
+	m := newMachine(0)
+	m.handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
+	out := m.handle(kd(kindEnter))
+	if out.done || out.status != "6/7 — need at least 7 words"+ctrlOHint {
+		t.Fatalf("at 6 words: done=%v status=%q", out.done, out.status)
 	}
-	m.Handle(paste("wolverine"))
-	out = m.Handle(kd(KindEnter))
-	if !out.Done {
+	m.handle(paste("wolverine"))
+	out = m.handle(kd(kindEnter))
+	if !out.done {
 		t.Fatalf("at 7 words + empty buf: done = false")
 	}
 }
@@ -391,47 +391,47 @@ func TestEnterGating(t *testing.T) {
 // An 8th word can be committed and Enter still submits (phrases longer than
 // 7 are legal; only ≥7 is guaranteed).
 func TestEighthWordThenEnter(t *testing.T) {
-	m := NewMachine(0)
-	m.Handle(paste("acrobat cufflink dresser osmosis riverboat tulip wolverine"))
+	m := newMachine(0)
+	m.handle(paste("acrobat cufflink dresser osmosis riverboat tulip wolverine"))
 	runSteps(t, m, typeRunes("zeb"))
-	out := m.Handle(kd(KindSpace))
-	if out.Status != "8 words · Enter submits — keep typing if the phrase was longer" {
-		t.Fatalf("8th commit status = %q", out.Status)
+	out := m.handle(kd(kindSpace))
+	if out.status != "8 words · Enter submits — keep typing if the phrase was longer" {
+		t.Fatalf("8th commit status = %q", out.status)
 	}
-	if out.Done {
+	if out.done {
 		t.Fatal("Space must never trigger decrypt")
 	}
-	out = m.Handle(kd(KindEnter))
-	if !out.Done || string(out.Phrase) != "acrobat cufflink dresser osmosis riverboat tulip wolverine zebra" {
-		t.Fatalf("done=%v phrase=%q", out.Done, out.Phrase)
+	out = m.handle(kd(kindEnter))
+	if !out.done || string(out.phrase) != "acrobat cufflink dresser osmosis riverboat tulip wolverine zebra" {
+		t.Fatalf("done=%v phrase=%q", out.done, out.phrase)
 	}
 }
 
-// NewMachine's gate is parameterized for focused terminal tests.
+// newMachine's gate is parameterized for focused terminal tests.
 func TestCustomMinGate(t *testing.T) {
-	m := NewMachine(3)
-	m.Handle(paste("acrobat cufflink"))
-	out := m.Handle(kd(KindEnter))
-	if out.Done || out.Status != "2/3 — need at least 3 words"+ctrlOHint {
-		t.Fatalf("at 2/3: done=%v status=%q", out.Done, out.Status)
+	m := newMachine(3)
+	m.handle(paste("acrobat cufflink"))
+	out := m.handle(kd(kindEnter))
+	if out.done || out.status != "2/3 — need at least 3 words"+ctrlOHint {
+		t.Fatalf("at 2/3: done=%v status=%q", out.done, out.status)
 	}
-	out = m.Handle(paste("dresser"))
-	if want := "3 words · Enter submits — keep typing if the phrase was longer"; out.Status != want {
-		t.Fatalf("3rd commit status = %q", out.Status)
+	out = m.handle(paste("dresser"))
+	if want := "3 words · Enter submits — keep typing if the phrase was longer"; out.status != want {
+		t.Fatalf("3rd commit status = %q", out.status)
 	}
-	out = m.Handle(kd(KindEnter))
-	if !out.Done || string(out.Phrase) != "acrobat cufflink dresser" {
-		t.Fatalf("done=%v phrase=%q", out.Done, out.Phrase)
+	out = m.handle(kd(kindEnter))
+	if !out.done || string(out.phrase) != "acrobat cufflink dresser" {
+		t.Fatalf("done=%v phrase=%q", out.done, out.phrase)
 	}
 }
 
-// Output.Committed must be a defensive copy.
+// machineOutput.committed must be a defensive copy.
 func TestOutputCommittedIsACopy(t *testing.T) {
-	m := NewMachine(0)
-	out := m.Handle(paste("acrobat cufflink"))
-	out.Committed[0] = "corrupted"
-	if got := m.Committed()[0]; got != "acrobat" {
-		t.Fatalf("machine state aliased by Output.Committed: %q", got)
+	m := newMachine(0)
+	out := m.handle(paste("acrobat cufflink"))
+	out.committed[0] = "corrupted"
+	if got := m.committedCopy()[0]; got != "acrobat" {
+		t.Fatalf("machine state aliased by machineOutput.committed: %q", got)
 	}
 }
 
@@ -450,26 +450,26 @@ func TestTabCommitsUniqueElseHoldsCandidateCount(t *testing.T) {
 	}
 	var unique, ambiguous int
 	for p := range prefixes {
-		m := NewMachine(0)
+		m := newMachine(0)
 		for _, r := range p {
-			m.Handle(rn(r))
+			m.handle(rn(r))
 		}
-		before := m.candCount(m.Buf())
-		want := m.firstCandidates(m.Buf(), 1)
-		out := m.Handle(kd(KindTab))
+		before := m.candCount(string(m.buf))
+		want := m.firstCandidates(string(m.buf), 1)
+		out := m.handle(kd(kindTab))
 		if before == 1 {
 			unique++
-			if out.Buf != "" || !slices.Equal(out.Committed, want) {
+			if out.buf != "" || !slices.Equal(out.committed, want) {
 				t.Fatalf("prefix %q: Tab on a unique candidate gave committed=%v buf=%q, want %v and an empty buf",
-					p, out.Committed, out.Buf, want)
+					p, out.committed, out.buf, want)
 			}
 			continue
 		}
 		ambiguous++
-		if len(out.Committed) != 0 {
-			t.Fatalf("prefix %q: Tab committed %v with %d candidates", p, out.Committed, before)
+		if len(out.committed) != 0 {
+			t.Fatalf("prefix %q: Tab committed %v with %d candidates", p, out.committed, before)
 		}
-		if after := m.candCount(out.Buf); before != after {
+		if after := m.candCount(out.buf); before != after {
 			t.Fatalf("prefix %q: Tab changed candidate count %d → %d", p, before, after)
 		}
 	}
@@ -481,36 +481,36 @@ func TestTabCommitsUniqueElseHoldsCandidateCount(t *testing.T) {
 // The un-commit → edit → recommit loop: wrong-word correction without
 // retyping the phrase (§7.2 Backspace row rationale).
 func TestUncommitEditRecommit(t *testing.T) {
-	m := NewMachine(0)
-	m.Handle(paste("acrobat tupperware"))
-	m.Handle(kd(KindBackspace)) // "tupperware" back into buf
+	m := newMachine(0)
+	m.handle(paste("acrobat tupperware"))
+	m.handle(kd(kindBackspace)) // "tupperware" back into buf
 	for range len("tupperware") - len("tu") {
-		m.Handle(kd(KindBackspace))
+		m.handle(kd(kindBackspace))
 	}
-	out := m.Handle(rn('l'))
-	if out.Buf != "tul" || out.Ghost != "ip" {
-		t.Fatalf("buf=%q ghost=%q", out.Buf, out.Ghost)
+	out := m.handle(rn('l'))
+	if out.buf != "tul" || out.ghost != "ip" {
+		t.Fatalf("buf=%q ghost=%q", out.buf, out.ghost)
 	}
-	out = m.Handle(kd(KindSpace))
+	out = m.handle(kd(kindSpace))
 	want := []string{"acrobat", "tulip"}
-	if !reflect.DeepEqual(out.Committed, want) {
-		t.Fatalf("committed = %v, want %v", out.Committed, want)
+	if !reflect.DeepEqual(out.committed, want) {
+		t.Fatalf("committed = %v, want %v", out.committed, want)
 	}
 }
 
 // Sanity: after every event of a long random-ish walk, a non-empty buf in
 // list-locked mode always has ≥1 candidate (the machine's core invariant).
 func TestBufAlwaysHasCandidates(t *testing.T) {
-	m := NewMachine(0)
-	events := []Event{
-		rn('a'), rn('c'), rn('r'), kd(KindSpace), rn('z'), kd(KindTab), rn('9'),
-		kd(KindBackspace), kd(KindBackspace), rn('q'), kd(KindTab), kd(KindCtrlW), kd(KindBackspace),
-		rn('x'), kd(KindEnter), kd(KindCtrlU), paste("tulip"), kd(KindBackspace), kd(KindSpace),
+	m := newMachine(0)
+	events := []event{
+		rn('a'), rn('c'), rn('r'), kd(kindSpace), rn('z'), kd(kindTab), rn('9'),
+		kd(kindBackspace), kd(kindBackspace), rn('q'), kd(kindTab), kd(kindCtrlW), kd(kindBackspace),
+		rn('x'), kd(kindEnter), kd(kindCtrlU), paste("tulip"), kd(kindBackspace), kd(kindSpace),
 	}
 	for i, e := range events {
-		m.Handle(e)
-		if m.Mode() == ListLocked && m.Buf() != "" && m.candCount(m.Buf()) < 1 {
-			t.Fatalf("after event %d (%+v): buf %q has no candidates", i, e, m.Buf())
+		m.handle(e)
+		if string(m.buf) != "" && m.candCount(string(m.buf)) < 1 {
+			t.Fatalf("after event %d (%+v): buf %q has no candidates", i, e, m.buf)
 		}
 	}
 }
@@ -521,31 +521,31 @@ func TestBufAlwaysHasCandidates(t *testing.T) {
 // accepted exactly at "yo-" (unique → ghost "yo"); digits/punctuation still
 // reject everywhere else because no list word contains them.
 func TestYoYoTypeable(t *testing.T) {
-	m := NewMachine(0)
-	m.Handle(rn('y'))
-	m.Handle(rn('o'))
-	out := m.Handle(rn('-'))
-	if out.Bell || out.Buf != "yo-" || out.Ghost != "yo" {
-		t.Fatalf("bell=%v buf=%q ghost=%q, want yo- with ghost yo", out.Bell, out.Buf, out.Ghost)
+	m := newMachine(0)
+	m.handle(rn('y'))
+	m.handle(rn('o'))
+	out := m.handle(rn('-'))
+	if out.bell || out.buf != "yo-" || out.ghost != "yo" {
+		t.Fatalf("bell=%v buf=%q ghost=%q, want yo- with ghost yo", out.bell, out.buf, out.ghost)
 	}
-	out = m.Handle(kd(KindSpace))
-	if len(out.Committed) != 1 || out.Committed[0] != "yo-yo" {
-		t.Fatalf("committed = %v", out.Committed)
+	out = m.handle(kd(kindSpace))
+	if len(out.committed) != 1 || out.committed[0] != "yo-yo" {
+		t.Fatalf("committed = %v", out.committed)
 	}
 	// hyphen is NOT blanket-allowed: rejected where no hyphen word remains
-	m2 := NewMachine(0)
-	m2.Handle(rn('a'))
-	out = m2.Handle(rn('-'))
-	if !out.Bell || out.Buf != "a" {
-		t.Fatalf(`"a-" must reject: bell=%v buf=%q`, out.Bell, out.Buf)
+	m2 := newMachine(0)
+	m2.handle(rn('a'))
+	out = m2.handle(rn('-'))
+	if !out.bell || out.buf != "a" {
+		t.Fatalf(`"a-" must reject: bell=%v buf=%q`, out.bell, out.buf)
 	}
 	// and digits still reject even at the yo- point
-	m3 := NewMachine(0)
-	m3.Handle(rn('y'))
-	m3.Handle(rn('o'))
-	out = m3.Handle(rn('7'))
-	if !out.Bell || out.Buf != "yo" {
-		t.Fatalf(`"yo7" must reject: bell=%v buf=%q`, out.Bell, out.Buf)
+	m3 := newMachine(0)
+	m3.handle(rn('y'))
+	m3.handle(rn('o'))
+	out = m3.handle(rn('7'))
+	if !out.bell || out.buf != "yo" {
+		t.Fatalf(`"yo7" must reject: bell=%v buf=%q`, out.bell, out.buf)
 	}
 }
 
@@ -554,16 +554,16 @@ func TestYoYoTypeable(t *testing.T) {
 func TestReachabilityByTyping(t *testing.T) {
 	var failed []string
 	for _, w := range wordlist.Words() {
-		m := NewMachine(0)
+		m := newMachine(0)
 		ok := true
 		for _, r := range w {
-			if out := m.Handle(rn(r)); out.Bell {
+			if out := m.handle(rn(r)); out.bell {
 				ok = false
 				break
 			}
 		}
 		if ok {
-			if out := m.Handle(kd(KindSpace)); out.Bell || len(out.Committed) != 1 || out.Committed[0] != w {
+			if out := m.handle(kd(kindSpace)); out.bell || len(out.committed) != 1 || out.committed[0] != w {
 				ok = false
 			}
 		}

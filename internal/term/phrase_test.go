@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// pipeTTY builds a TTY over os.Pipe pairs: not a real terminal (MakeRaw
+// pipeTTY builds a TTY over os.Pipe pairs: not a real terminal (makeRaw
 // fails, Size falls back to 80×24), but the pump, decoder wiring, and the
 // plain fallback are all real. Returns the TTY, the input writer, and the
 // output reader.
@@ -38,9 +38,9 @@ func TestReadEventPump(t *testing.T) {
 	if _, err := inW.Write([]byte("ac \x1b[A\x03")); err != nil {
 		t.Fatal(err)
 	}
-	want := []Event{rn('a'), rn('c'), kd(KindSpace), kd(KindIgnored), kd(KindCtrlC)}
+	want := []event{rn('a'), rn('c'), kd(kindSpace), kd(kindIgnored), kd(kindCtrlC)}
 	for i, w := range want {
-		ev, err := tty.ReadEvent()
+		ev, err := tty.readEventContext(context.Background())
 		if err != nil {
 			t.Fatalf("event %d: %v", i, err)
 		}
@@ -49,11 +49,11 @@ func TestReadEventPump(t *testing.T) {
 		}
 	}
 	inW.Close()
-	if _, err := tty.ReadEvent(); err != io.EOF {
+	if _, err := tty.readEventContext(context.Background()); err != io.EOF {
 		t.Fatalf("after close: err = %v, want io.EOF", err)
 	}
 	// EOF is sticky.
-	if _, err := tty.ReadEvent(); err != io.EOF {
+	if _, err := tty.readEventContext(context.Background()); err != io.EOF {
 		t.Fatalf("second read after EOF: err = %v", err)
 	}
 }
@@ -62,7 +62,7 @@ func TestReadEventContextCancellation(t *testing.T) {
 	tty, _, _ := pipeTTY(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := tty.ReadEventContext(ctx); !errors.Is(err, context.Canceled) {
+	if _, err := tty.readEventContext(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
@@ -79,11 +79,11 @@ func TestReadEventEscTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	ev, err := tty.ReadEvent()
+	ev, err := tty.readEventContext(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ev.Kind != KindIgnored {
+	if ev.Kind != kindIgnored {
 		t.Fatalf("lone ESC decoded as %+v, want ignored", ev)
 	}
 	if elapsed := time.Since(start); elapsed < escTimeout {
@@ -93,14 +93,14 @@ func TestReadEventEscTimeout(t *testing.T) {
 	if _, err := inW.Write([]byte("q")); err != nil {
 		t.Fatal(err)
 	}
-	ev, err = tty.ReadEvent()
-	if err != nil || ev.Kind != KindRune || ev.R != 'q' {
+	ev, err = tty.readEventContext(context.Background())
+	if err != nil || ev.Kind != kindRune || ev.R != 'q' {
 		t.Fatalf("after timeout: ev=%+v err=%v", ev, err)
 	}
 }
 
 // A paste burst is NOT subject to the inter-byte timeout: split writes with
-// a pause longer than escTimeout still produce one atomic KindPaste.
+// a pause longer than escTimeout still produce one atomic kindPaste.
 func TestReadEventPasteSurvivesPause(t *testing.T) {
 	old := escTimeout
 	escTimeout = 10 * time.Millisecond
@@ -114,11 +114,11 @@ func TestReadEventPasteSurvivesPause(t *testing.T) {
 	if _, err := inW.Write([]byte("tulip\x1b[201~")); err != nil {
 		t.Fatal(err)
 	}
-	ev, err := tty.ReadEvent()
+	ev, err := tty.readEventContext(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ev.Kind != KindPaste || string(ev.Paste) != "acrobat tulip" {
+	if ev.Kind != kindPaste || string(ev.Paste) != "acrobat tulip" {
 		t.Fatalf("paste = %+v", ev)
 	}
 }
@@ -132,7 +132,7 @@ func TestReadPhraseFallsBackToPlain(t *testing.T) {
 		io.WriteString(inW, "acrobat cufflink dresser osmosis riverboat tulip wolverine\n\n")
 		inW.Close()
 	}()
-	buf, err := ReadPhrase(tty, PhraseOpts{})
+	buf, err := ReadPhraseContext(context.Background(), tty, PhraseOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,19 +147,19 @@ func TestReadPhraseFallsBackToPlain(t *testing.T) {
 	}
 }
 
-// Plain is also honored when asked for explicitly, with Min flowing through.
+// Plain is also honored when asked for explicitly.
 func TestReadPhraseExplicitPlain(t *testing.T) {
 	tty, inW, _ := pipeTTY(t)
 	go func() {
-		io.WriteString(inW, "cup elk\n\n")
+		io.WriteString(inW, mintPhrase+"\n\n")
 		inW.Close()
 	}()
-	buf, err := ReadPhrase(tty, PhraseOpts{Plain: true, Min: 2})
+	buf, err := ReadPhraseContext(context.Background(), tty, PhraseOpts{Plain: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer buf.Wipe()
-	if got := string(buf.Bytes()); got != "cup elk" {
+	if got := string(buf.Bytes()); got != mintPhrase {
 		t.Fatalf("phrase = %q", got)
 	}
 }
@@ -167,7 +167,7 @@ func TestReadPhraseExplicitPlain(t *testing.T) {
 func TestReadPhrasePlainInterrupt(t *testing.T) {
 	tty, inW, _ := pipeTTY(t)
 	inW.Close() // immediate EOF at the prompt
-	if _, err := ReadPhrase(tty, PhraseOpts{Plain: true}); !errors.Is(err, ErrInterrupted) {
+	if _, err := ReadPhraseContext(context.Background(), tty, PhraseOpts{Plain: true}); !errors.Is(err, ErrInterrupted) {
 		t.Fatalf("err = %v, want ErrInterrupted", err)
 	}
 }
@@ -202,21 +202,10 @@ func TestEmergencyRestoreWritesOnlyActiveModes(t *testing.T) {
 	}
 }
 
-// Out() must hand back the tty writer (prompts never touch stdout, §5.1).
-func TestOutIsTheTTYWriter(t *testing.T) {
-	tty, _, outR := pipeTTY(t)
-	io.WriteString(tty.Out(), "prompt\n")
-	tty.out.Close()
-	b, _ := io.ReadAll(outR)
-	if string(b) != "prompt\n" {
-		t.Fatalf("out = %q", b)
-	}
-}
-
-// Size falls back to 80×24 when the fd is not a terminal.
+// size falls back to 80×24 when the fd is not a terminal.
 func TestSizeFallback(t *testing.T) {
 	tty, _, _ := pipeTTY(t)
-	w, h := tty.Size()
+	w, h := tty.size()
 	if w != 80 || h != 24 {
 		t.Fatalf("size = %d×%d, want 80×24", w, h)
 	}

@@ -70,9 +70,9 @@ func TestReadLineContextRawEditingAndPasteWipe(t *testing.T) {
 	tty.startPump()
 	tty.events <- rn('a')
 	tty.events <- rn('b')
-	tty.events <- kd(KindBackspace)
-	tty.events <- Event{Kind: KindPaste, Paste: payload}
-	tty.events <- kd(KindEnter)
+	tty.events <- kd(kindBackspace)
+	tty.events <- event{Kind: kindPaste, Paste: payload}
+	tty.events <- kd(kindEnter)
 	line, err := tty.readLineContext(context.Background(), 64)
 	_ = inW.Close()
 	if err != nil {
@@ -89,15 +89,15 @@ func TestReadLineContextRawEditingAndPasteWipe(t *testing.T) {
 }
 
 func TestReadLineContextBoundsWipesAndDrainsTheWholeLine(t *testing.T) {
-	tty := &TTY{events: make(chan Event, 16), winch: make(chan struct{}, 1)}
+	tty := &TTY{events: make(chan event, 16), winch: make(chan struct{}, 1)}
 	tty.pumpOnce.Do(func() {}) // events are injected directly; do not start an fd pump
 	payload := []byte("secret")
-	for _, ev := range []Event{
+	for _, ev := range []event{
 		rn('a'),
-		{Kind: KindPaste, Paste: payload},
+		{Kind: kindPaste, Paste: payload},
 		rn('x'),
-		kd(KindEnter),
-		rn('o'), rn('k'), kd(KindEnter),
+		kd(kindEnter),
+		rn('o'), rn('k'), kd(kindEnter),
 	} {
 		tty.events <- ev
 	}
@@ -117,11 +117,11 @@ func TestReadLineContextBoundsWipesAndDrainsTheWholeLine(t *testing.T) {
 
 func TestReadLineContextAcceptsExactLimitAndCancelsWhileDraining(t *testing.T) {
 	t.Run("exact limit", func(t *testing.T) {
-		tty := &TTY{events: make(chan Event, 2), winch: make(chan struct{}, 1)}
+		tty := &TTY{events: make(chan event, 2), winch: make(chan struct{}, 1)}
 		tty.pumpOnce.Do(func() {})
 		payload := []byte("abc")
-		tty.events <- Event{Kind: KindPaste, Paste: payload}
-		tty.events <- kd(KindEnter)
+		tty.events <- event{Kind: kindPaste, Paste: payload}
+		tty.events <- kd(kindEnter)
 		line, err := tty.readLineContext(context.Background(), 3)
 		if err != nil || string(line) != "abc" {
 			t.Fatalf("exact-limit line = %q, err=%v", line, err)
@@ -134,7 +134,7 @@ func TestReadLineContextAcceptsExactLimitAndCancelsWhileDraining(t *testing.T) {
 	})
 
 	t.Run("cancellation while draining", func(t *testing.T) {
-		tty := &TTY{events: make(chan Event), winch: make(chan struct{}, 1)}
+		tty := &TTY{events: make(chan event), winch: make(chan struct{}, 1)}
 		tty.pumpOnce.Do(func() {})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
@@ -142,7 +142,7 @@ func TestReadLineContextAcceptsExactLimitAndCancelsWhileDraining(t *testing.T) {
 			_, err := tty.readLineContext(ctx, 3)
 			done <- err
 		}()
-		tty.events <- kd(KindInputTooLong)
+		tty.events <- kd(kindInputTooLong)
 		cancel()
 		if err := <-done; !errors.Is(err, context.Canceled) {
 			t.Fatalf("err=%v, want context.Canceled", err)

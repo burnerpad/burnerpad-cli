@@ -46,7 +46,8 @@ func TestRenderNeverWraps(t *testing.T) {
 	for width := 20; width <= 120; width++ {
 		for _, cs := range committedSets {
 			for _, bg := range bufGhost {
-				line := Render(cs, bg.buf, bg.ghost, width)
+				pre, ghost := renderLine(promptLabel(len(cs), wordlist.PhraseWords), cs, bg.buf, bg.ghost, width)
+				line := pre + ghost
 				if n := utf8.RuneCountInString(line); n >= width {
 					t.Fatalf("width %d, %d words, buf=%q ghost=%q: line is %d runes (%q)",
 						width, len(cs), bg.buf, bg.ghost, n, line)
@@ -62,7 +63,8 @@ func TestRenderNeverWraps(t *testing.T) {
 // When everything fits, nothing is elided and the full phrase is visible.
 func TestRenderWideShowsEverything(t *testing.T) {
 	committed := []string{"acrobat", "cufflink"}
-	line := Render(committed, "dre", "sser", 80)
+	pre, ghost := renderLine(promptLabel(len(committed), wordlist.PhraseWords), committed, "dre", "sser", 80)
+	line := pre + ghost
 	want := "word 3/7 ▸ acrobat cufflink dresser"
 	if line != want {
 		t.Fatalf("line = %q, want %q", line, want)
@@ -75,7 +77,8 @@ func TestRenderWideShowsEverything(t *testing.T) {
 // authoritative.
 func TestRenderHeadElision(t *testing.T) {
 	committed := maxLenWords(t, 16)
-	line := Render(committed, "tul", "ip", 60)
+	pre, ghost := renderLine(promptLabel(len(committed), wordlist.PhraseWords), committed, "tul", "ip", 60)
+	line := pre + ghost
 	if utf8.RuneCountInString(line) >= 60 {
 		t.Fatalf("overflow: %q", line)
 	}
@@ -87,7 +90,7 @@ func TestRenderHeadElision(t *testing.T) {
 	}
 	// the visible committed tail must be a true suffix of the real phrase
 	joined := strings.Join(committed, " ") + " "
-	prompt := PromptLabel(len(committed))
+	prompt := promptLabel(len(committed), wordlist.PhraseWords)
 	body := strings.TrimPrefix(line, prompt)
 	body = strings.TrimSuffix(body, "tulip")
 	if i := strings.IndexRune(body, '…'); i < 0 {
@@ -101,7 +104,9 @@ func TestRenderHeadElision(t *testing.T) {
 // 10 + 1 reserve > 20): A10's stage 2 drops the ghost, stage 3 head-elides
 // buf, and the line must still never wrap.
 func TestRenderNarrowDegradation(t *testing.T) {
-	line := Render(maxLenWords(t, 7), "unquenche", "d", 20)
+	committed := maxLenWords(t, 7)
+	pre, ghost := renderLine(promptLabel(len(committed), wordlist.PhraseWords), committed, "unquenche", "d", 20)
+	line := pre + ghost
 	if n := utf8.RuneCountInString(line); n >= 20 {
 		t.Fatalf("width 20: %d runes: %q", n, line)
 	}
@@ -138,8 +143,8 @@ func TestPromptLabel(t *testing.T) {
 		{15, "15 words ▸ "},
 	}
 	for _, c := range cases {
-		if got := PromptLabel(c.n); got != c.want {
-			t.Fatalf("PromptLabel(%d) = %q, want %q", c.n, got, c.want)
+		if got := promptLabel(c.n, wordlist.PhraseWords); got != c.want {
+			t.Fatalf("promptLabel(%d) = %q, want %q", c.n, got, c.want)
 		}
 	}
 }

@@ -11,12 +11,12 @@ import (
 	"unicode/utf8"
 )
 
-// script returns a ReadEvent-shaped source that replays evs then EOFs.
-func script(evs ...Event) func() (Event, error) {
+// script returns an event source that replays evs then EOFs.
+func script(evs ...event) func() (event, error) {
 	i := 0
-	return func() (Event, error) {
+	return func() (event, error) {
 		if i >= len(evs) {
-			return Event{}, io.EOF
+			return event{}, io.EOF
 		}
 		e := evs[i]
 		i++
@@ -56,7 +56,7 @@ func TestViewerHeaderDimUnlessNoColor(t *testing.T) {
 // ignored.
 func TestViewerCtrlCAndIgnoredKeys(t *testing.T) {
 	var buf bytes.Buffer
-	err := showViewer(&buf, script(rn('x'), kd(KindSpace), kd(KindIgnored), kd(KindCtrlC)),
+	err := showViewer(&buf, script(rn('x'), kd(kindSpace), kd(kindIgnored), kd(kindCtrlC)),
 		[]byte("secret"), ViewerOpts{NoColor: true})
 	if !errors.Is(err, ErrInterrupted) {
 		t.Fatalf("err = %v, want ErrInterrupted", err)
@@ -67,13 +67,13 @@ func TestViewerCtrlCAndIgnoredKeys(t *testing.T) {
 }
 
 func TestViewerCancellationAndReadErrorRestorePrimaryScreen(t *testing.T) {
-	for name, next := range map[string]func(context.Context) (Event, error){
-		"canceled": func(ctx context.Context) (Event, error) {
+	for name, next := range map[string]func(context.Context) (event, error){
+		"canceled": func(ctx context.Context) (event, error) {
 			<-ctx.Done()
-			return Event{}, ctx.Err()
+			return event{}, ctx.Err()
 		},
-		"read error": func(context.Context) (Event, error) {
-			return Event{}, io.ErrUnexpectedEOF
+		"read error": func(context.Context) (event, error) {
+			return event{}, io.ErrUnexpectedEOF
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -154,11 +154,10 @@ func TestViewerNoAltKeepsTrailingNewline(t *testing.T) {
 	}
 }
 
-// The header count honors ByteCount (the caller may show the true plaintext
-// size while displaying a rendition) and groups thousands (§8.1: "3,214").
+// The header count groups thousands from the actual plaintext length.
 func TestViewerByteCountFormatting(t *testing.T) {
 	var buf bytes.Buffer
-	err := showViewer(&buf, script(rn('q')), []byte("x"), ViewerOpts{NoColor: true, ByteCount: 3214})
+	err := showViewer(&buf, script(rn('q')), bytes.Repeat([]byte("x"), 3214), ViewerOpts{NoColor: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +183,7 @@ func TestViewerPagingReachesTailAndReturnsToPreviousPage(t *testing.T) {
 	body := []byte(first + second + "TAIL-MARKER")
 
 	var buf bytes.Buffer
-	err := showViewerAtSize(&buf, script(kd(KindSpace), rn('b'), kd(KindEnter), kd(KindSpace), rn('q')),
+	err := showViewerAtSize(&buf, script(kd(kindSpace), rn('b'), kd(kindEnter), kd(kindSpace), rn('q')),
 		body, ViewerOpts{NoColor: true}, columns+1, 5)
 	if err != nil {
 		t.Fatal(err)
@@ -262,8 +261,8 @@ func TestViewerTinyTerminalUsesReachableScrollbackFallback(t *testing.T) {
 
 func TestViewerReflowsAfterShrinkAndTailRemainsReachable(t *testing.T) {
 	body := []byte(strings.Repeat("a", 200) + "TAIL")
-	events := script(kd(KindResize), kd(KindSpace), kd(KindSpace), kd(KindSpace), kd(KindSpace), rn('q'))
-	next := func(context.Context) (Event, error) { return events() }
+	events := script(kd(kindResize), kd(kindSpace), kd(kindSpace), kd(kindSpace), kd(kindSpace), rn('q'))
+	next := func(context.Context) (event, error) { return events() }
 	var buf bytes.Buffer
 	enter := func() error {
 		_, err := io.WriteString(&buf, "\x1b[?1049h\x1b[H\x1b[2J")
@@ -282,8 +281,8 @@ func TestViewerReflowsAfterShrinkAndTailRemainsReachable(t *testing.T) {
 
 func TestViewerRechecksGeometryWithoutResizeEvent(t *testing.T) {
 	body := []byte(strings.Repeat("a", 200) + "TAIL")
-	events := script(kd(KindSpace), rn('q'))
-	next := func(context.Context) (Event, error) { return events() }
+	events := script(kd(kindSpace), rn('q'))
+	next := func(context.Context) (event, error) { return events() }
 	var buf bytes.Buffer
 	err := showViewerContext(context.Background(), &buf, next, func() (int, int) { return 50, 5 },
 		body, ViewerOpts{NoColor: true}, 80, 24,
@@ -303,8 +302,8 @@ func TestViewerRechecksGeometryWithoutResizeEvent(t *testing.T) {
 }
 
 func TestViewerResizeBelowFrameRequestsSafeFallback(t *testing.T) {
-	events := script(kd(KindResize))
-	next := func(context.Context) (Event, error) { return events() }
+	events := script(kd(kindResize))
+	next := func(context.Context) (event, error) { return events() }
 	var buf bytes.Buffer
 	err := showViewerContext(context.Background(), &buf, next, func() (int, int) { return 20, 4 },
 		[]byte("secret"), ViewerOpts{NoColor: true}, 80, 24,
@@ -319,7 +318,7 @@ func TestViewerResizeBelowFrameRequestsSafeFallback(t *testing.T) {
 
 func TestViewerChromeUsesOnlySingleWidthASCII(t *testing.T) {
 	for _, text := range []string{
-		viewerHeader(make([]byte, 65_491), ViewerOpts{}),
+		viewerHeader(make([]byte, 65_491)),
 		viewerFooterMax,
 		viewerFooter(false, true),
 		viewerFooter(true, false),
@@ -432,12 +431,12 @@ func TestViewerEscapesAttackerTerminalSequences(t *testing.T) {
 
 func showViewerAtSize(
 	w io.Writer,
-	next func() (Event, error),
+	next func() (event, error),
 	plaintext []byte,
 	o ViewerOpts,
 	width, height int,
 ) error {
-	nextContext := func(context.Context) (Event, error) { return next() }
+	nextContext := func(context.Context) (event, error) { return next() }
 	enter := func() error {
 		_, err := io.WriteString(w, "\x1b[?1049h\x1b[H\x1b[2J")
 		return err
