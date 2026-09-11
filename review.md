@@ -263,7 +263,7 @@ Finding 9 task ledger:
 - [x] 9.11 Make the installer reject unknown and extra arguments.
 - [x] 9.12 Keep rejected pasted tokens out of diagnostics.
 - [x] 9.13 Enforce the protected credential-file ownership/type/mode/symlink contract.
-- [ ] 9.14 Replace the predictable vector-sync temporary path.
+- [x] 9.14 Replace the predictable vector-sync temporary path.
 - [ ] 9.15 Make all pre-release changelog, installer, documentation, and task claims truthful.
 - [ ] 9.16 Restore the documented wordlist attribution on stderr.
 
