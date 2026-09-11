@@ -320,7 +320,7 @@ Finding 11 task ledger:
 
 - [x] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
 - [x] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
-- [ ] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
+- [x] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
 - [ ] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
 - [ ] 11.5 Prove real Lite expiry end to end through the CLI.
 - [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
@@ -342,6 +342,17 @@ without a response or returning an otherwise valid success body whose declared
 length is one byte too long. Every case produces the exact operation-specific
 outcome-unknown type, and repeated, race, and Windows/Darwin cross-compilation
 checks cover the fixture itself without adding a production test seam.
+
+11.3 completed 2026-09-11: the real `Run` path now exercises all seventeen
+machine-error codes with exact exit, stdout, and stderr assertions while proving
+that all ten sensitive-value classes that can reach those paths stay out of both
+diagnostic streams. A separate all-code, JSON-and-human-mode matrix proves that
+nested causes are never traversed. The fixtures establish each value's actual
+provenance, include a valid-envelope truncated-response control, and keep their
+own failure output non-sensitive. Tight race repetition also exposed and fixed a
+test-only terminal event-ownership race. The full test, vet, race, Staticcheck,
+dependency, import, and decode-gate suites pass without a production redaction
+change: no diagnostic disclosure was found.
 
 ## What is strong
 
