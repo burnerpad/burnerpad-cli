@@ -81,7 +81,8 @@ var commandSpecs = []commandSpec{
 	},
 	{
 		kind: commandWords, name: "words", description: "print the shared wordlist",
-		details: "Print the embedded EFF Short Wordlist #2, one word per line, in canonical order.",
+		details: "Write the EFF copyright and CC BY 3.0 attribution to stderr, then print the embedded EFF\n" +
+			"Short Wordlist #2 to stdout, one word per line, in canonical order.",
 	},
 	{
 		kind: commandCompletion, name: "completion", description: "print a shell completion",
