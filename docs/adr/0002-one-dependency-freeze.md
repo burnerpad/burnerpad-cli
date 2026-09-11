@@ -2,6 +2,11 @@
 
 Date: 2026-08-18 · Status: Accepted · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §2 (M6), §7.2, §19
 
+Implementation amendment (2026-09-11): the shell adapters remain first-party and dependency-free, but their
+command and option vocabularies are now generated from the same ordered command schema and stdlib `flag.FlagSet`
+registrars used by runtime dispatch. This removes four manually synchronized option lists while preserving the
+decision below.
+
 ## Context
 
 Every dependency is supply-chain surface and audit burden. The parent advertises "1-dep server /

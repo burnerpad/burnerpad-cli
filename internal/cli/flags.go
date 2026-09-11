@@ -15,9 +15,12 @@ type globalFlags struct {
 	noColor        bool
 }
 
-func registerGlobals(fs *flag.FlagSet, g *globalFlags) {
+func registerNetworkFlags(fs *flag.FlagSet, g *globalFlags) {
 	fs.StringVar(&g.server, "server", "", "server origin")
 	fs.DurationVar(&g.timeout, "timeout", 12*time.Second, "request timeout")
+}
+
+func registerPresentationFlags(fs *flag.FlagSet, g *globalFlags) {
 	fs.BoolVar(&g.json, "json", false, "JSON output")
 	fs.BoolVar(&g.plain, "plain", false, "accessible line prompts")
 	fs.BoolVar(&g.noColor, "no-color", false, "disable color")
@@ -70,7 +73,7 @@ func registerReveal(fs *flag.FlagSet) *revealFlags {
 	fs.BoolVar(&f.ask, "ask", false, "prompt for the passphrase")
 	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
 	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
-	fs.StringVar(&f.keepBlob, "keep-blob", "", "save claimed ciphertext")
+	fs.StringVar(&f.keepBlob, "keep-blob", "", "recovery ciphertext file")
 	fs.StringVar(&f.out, "out", "", "plaintext output file")
 	return f
 }
