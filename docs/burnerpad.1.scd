@@ -88,6 +88,16 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 *--out* _FILE_
 	Write plaintext to a newly created owner-only file. Existing paths are never overwritten.
 
+# CREDENTIAL FILES
+
+Named passphrase and management-token files are validated on the opened handle before they are read. On
+Linux and macOS the object must be a regular file owned by the current user with no group or other permission
+bits, normally mode 0600 or 0400, and the final path component must not be a symlink. macOS files must also
+have no extended ACL. On Windows the object must be a
+non-reparse regular disk file owned by the current user with a protected DACL that allows no other principal.
+Unsafe files fail before network access. Descriptor sources are already-open capabilities and may be pipes;
+the named-file rules do not apply to them.
+
 # PASSPHRASES
 
 Phrases contain 7-64 distinct members of the embedded EFF Short Wordlist #2. ASCII whitespace and case are

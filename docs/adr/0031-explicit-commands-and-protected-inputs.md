@@ -1,6 +1,6 @@
 # ADR-0031: Require explicit commands and protected input sources
 
-Date: 2026-09-10 · Status: Accepted · Supersedes: [ADR-0009](0009-key-material-never-in-argv.md)
+Date: 2026-09-10 · Status: Accepted · Supersedes: [ADR-0009](0009-key-material-never-in-argv.md) · Amended by: [ADR-0037](0037-validate-named-credential-files.md)
 
 ## Context
 

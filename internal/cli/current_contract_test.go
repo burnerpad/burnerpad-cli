@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
+	"github.com/burnerpad/burnerpad-cli/internal/secret"
 	"github.com/burnerpad/burnerpad-cli/internal/term"
 )
 
@@ -36,11 +37,24 @@ func contractEnv(args []string, stdin string) (Env, *bytes.Buffer, *bytes.Buffer
 
 func phraseFile(t *testing.T) string {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "phrase")
-	if err := os.WriteFile(p, []byte(contractPhrase+"\n"), 0o600); err != nil {
+	return credentialFile(t, "phrase", contractPhrase+"\n")
+}
+
+func credentialFile(t *testing.T, name, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	file, err := secret.CreateExclusive(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return p
+	if _, err := file.Write([]byte(content)); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T) {
@@ -178,10 +192,7 @@ func TestCurrentProcessBurnWarnsOnlyForArgvShareURL(t *testing.T) {
 		w.Write([]byte(`{"status":"burned"}`))
 	}))
 	defer srv.Close()
-	token := filepath.Join(t.TempDir(), "token")
-	if err := os.WriteFile(token, []byte(contractToken+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	token := credentialFile(t, "token", contractToken+"\n")
 
 	for _, test := range []struct {
 		name string
@@ -283,10 +294,7 @@ func TestCurrentProcessRejectsRetiredQuietBeforeNetwork(t *testing.T) {
 	defer srv.Close()
 
 	phrase := phraseFile(t)
-	token := filepath.Join(t.TempDir(), "token")
-	if err := os.WriteFile(token, []byte(contractToken+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	token := credentialFile(t, "token", contractToken+"\n")
 	blob := envelope.EncodeToBytes(envelope.EncryptPassphrase([]byte(contractPhrase), []byte("must not be processed")))
 	for name, args := range map[string][]string{
 		"create before command":  {"--quiet", "create", "--server", srv.URL, "--passphrase-file", phrase},
@@ -350,10 +358,7 @@ func TestCurrentProcessPreflightErrorsAreSecretFreeAndCarrySelectedServer(t *tes
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests.Add(1) }))
 	defer srv.Close()
-	badPhrase := filepath.Join(t.TempDir(), "bad-phrase")
-	if err := os.WriteFile(badPhrase, []byte("not a compatible phrase\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	badPhrase := credentialFile(t, "bad-phrase", "not a compatible phrase\n")
 	e, stdout, stderr := contractEnv([]string{"reveal", "--json", "--passphrase-file", badPhrase, srv.URL + "/s/" + contractID}, "")
 	if code := Run(e); code != 2 {
 		t.Fatalf("exit=%d stderr=%s", code, stderr)
@@ -434,10 +439,7 @@ func TestCurrentProcessRevealRecoverySurvivesWrongPhrase(t *testing.T) {
 		w.Write([]byte(`{"blob":"` + string(envelope.EncodeToBytes(blob)) + `"}`))
 	}))
 	defer srv.Close()
-	wrong := filepath.Join(t.TempDir(), "wrong-phrase")
-	if err := os.WriteFile(wrong, []byte("freeway faucet unnoticed energy emoticon elves enormous\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	wrong := credentialFile(t, "wrong-phrase", "freeway faucet unnoticed energy emoticon elves enormous\n")
 	recovery := filepath.Join(t.TempDir(), "claimed.blob")
 	e, stdout, stderr := contractEnv([]string{"reveal", "--json", "--passphrase-file", wrong, "--keep-blob", recovery, srv.URL + "/s/" + contractID}, "")
 	if code := Run(e); code != 5 {
