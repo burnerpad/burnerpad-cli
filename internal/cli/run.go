@@ -18,16 +18,12 @@ import (
 const defaultServer = "https://burnerpad.io"
 
 type config struct {
-	server      string
-	serverFlag  bool
-	timeoutFlag bool
-	jsonFlag    bool
-	plainFlag   bool
-	noColorFlag bool
-	timeout     time.Duration
-	json        bool
-	plain       bool
-	noColor     bool
+	server     string
+	serverFlag bool
+	timeout    time.Duration
+	json       bool
+	plain      bool
+	noColor    bool
 }
 
 type application struct {
@@ -219,11 +215,6 @@ func (a *application) report(err error) int {
 	return ce.exit
 }
 
-var commands = map[string]bool{
-	"create": true, "reveal": true, "burn": true, "decrypt": true,
-	"words": true, "completion": true, "version": true, "licenses": true, "help": true,
-}
-
 func dispatch(a *application) error {
 	name, args, err := splitCommand(a.env.Args)
 	if err != nil {
@@ -232,7 +223,8 @@ func dispatch(a *application) error {
 	if name == "" {
 		return usage("invalid_command", "a command is required; run 'burnerpad help'")
 	}
-	if !commands[name] {
+	spec := findCommandSpec(name)
+	if spec == nil {
 		return usage("invalid_command", "unknown command; run 'burnerpad help'")
 	}
 	if duplicateOption(args) {
@@ -242,67 +234,22 @@ func dispatch(a *application) error {
 	g := globalFlags{timeout: 12 * time.Second}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	registerGlobals(fs, &g)
-	var command any
-	switch name {
-	case "create":
-		command = registerCreate(fs)
-	case "reveal":
-		command = registerReveal(fs)
-	case "burn":
-		command = registerBurn(fs)
-	case "decrypt":
-		command = registerDecrypt(fs)
-	}
+	command := registerCommandFlags(fs, spec, &g)
 	positionals, err := parseInterleaved(fs, args)
 	if err != nil {
 		return usage("invalid_option", safeFlagError(err))
 	}
 	fs.Visit(func(f *flag.Flag) {
-		switch f.Name {
-		case "server":
+		if f.Name == "server" {
 			g.serverExplicit = true
-		case "timeout":
-			a.cfg.timeoutFlag = true
-		case "json":
-			a.cfg.jsonFlag = true
-		case "plain":
-			a.cfg.plainFlag = true
-		case "no-color":
-			a.cfg.noColorFlag = true
 		}
 	})
-	explicit := a.cfg
 	a.cfg = resolveConfig(a.env, g)
-	a.cfg.timeoutFlag = explicit.timeoutFlag
-	a.cfg.jsonFlag = explicit.jsonFlag
-	a.cfg.plainFlag = explicit.plainFlag
-	a.cfg.noColorFlag = explicit.noColorFlag
 	if a.cfg.timeout <= 0 {
 		return usage("invalid_option", "--timeout must be positive")
 	}
 
-	switch name {
-	case "create":
-		return runCreate(a, command.(*createFlags), positionals)
-	case "reveal":
-		return runReveal(a, command.(*revealFlags), positionals)
-	case "burn":
-		return runBurn(a, command.(*burnFlags), positionals)
-	case "decrypt":
-		return runDecrypt(a, command.(*decryptFlags), positionals)
-	case "words":
-		return runWords(a, positionals)
-	case "completion":
-		return runCompletion(a, positionals)
-	case "version":
-		return runVersion(a, positionals)
-	case "licenses":
-		return runLicenses(a, positionals)
-	case "help":
-		return runHelp(a, positionals)
-	}
-	return usage("invalid_command", "unknown command")
+	return runCommand(spec, a, command, positionals)
 }
 
 func duplicateOption(args []string) bool {
@@ -329,7 +276,7 @@ func duplicateOption(args []string) bool {
 func splitCommand(args []string) (string, []string, error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if commands[arg] {
+		if findCommandSpec(arg) != nil {
 			out := append([]string{}, args[:i]...)
 			out = append(out, args[i+1:]...)
 			return arg, out, nil

@@ -21,12 +21,6 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 	if a.cfg.json && flags.out != "" {
 		return usage("invalid_option", "--json and --out are mutually exclusive")
 	}
-	if a.cfg.serverFlag {
-		return usage("invalid_option", "--server does not apply to offline decrypt")
-	}
-	if a.cfg.timeoutFlag {
-		return usage("invalid_option", "--timeout does not apply to offline decrypt")
-	}
 	out, err := a.prepareDestination(flags.out)
 	if err != nil {
 		return err

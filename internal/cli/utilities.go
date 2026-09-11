@@ -10,10 +10,7 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-func utilityArgs(a *application, name string, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
-		return usage("invalid_option", "global operation options do not apply to "+name)
-	}
+func utilityArgs(name string, positionals []string) error {
 	if len(positionals) != 0 {
 		return usage("invalid_input", name+" does not accept arguments")
 	}
@@ -21,7 +18,7 @@ func utilityArgs(a *application, name string, positionals []string) error {
 }
 
 func runWords(a *application, positionals []string) error {
-	if err := utilityArgs(a, "words", positionals); err != nil {
+	if err := utilityArgs("words", positionals); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(a.env.Stdout, strings.Join(wordlist.Words(), "\n")); err != nil {
@@ -31,7 +28,7 @@ func runWords(a *application, positionals []string) error {
 }
 
 func runVersion(a *application, positionals []string) error {
-	if err := utilityArgs(a, "version", positionals); err != nil {
+	if err := utilityArgs("version", positionals); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintf(a.env.Stdout,
@@ -48,7 +45,7 @@ func runVersion(a *application, positionals []string) error {
 var noticeText []byte
 
 func runLicenses(a *application, positionals []string) error {
-	if err := utilityArgs(a, "licenses", positionals); err != nil {
+	if err := utilityArgs("licenses", positionals); err != nil {
 		return err
 	}
 	if _, err := a.env.Stdout.Write(noticeText); err != nil {
@@ -58,9 +55,6 @@ func runLicenses(a *application, positionals []string) error {
 }
 
 func runHelp(a *application, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
-		return usage("invalid_option", "global operation options do not apply to help")
-	}
 	if len(positionals) > 1 {
 		return usage("invalid_input", "help accepts at most one command")
 	}
@@ -100,106 +94,6 @@ or "burnerpad help decrypt" for command options.
 	}
 	if _, err := fmt.Fprint(a.env.Stdout, text); err != nil {
 		return local("cannot write help")
-	}
-	return nil
-}
-
-var completionScripts = map[string]string{
-	"bash": `_burnerpad() {
-  local cur="${COMP_WORDS[COMP_CWORD]}"
-  local commands="create reveal burn decrypt words completion version licenses help"
-  local globals="--server --timeout --json --plain --no-color"
-  if (( COMP_CWORD == 1 )); then COMPREPLY=( $(compgen -W "$commands $globals" -- "$cur") ); return; fi
-  case "${COMP_WORDS[1]}" in
-    create) local flags="--server --timeout --json --plain --no-color --ttl --input --ask --passphrase-file --passphrase-fd" ;;
-    reveal) local flags="--server --timeout --json --plain --no-color --ask --passphrase-file --passphrase-fd --keep-blob --out" ;;
-    burn) local flags="--server --timeout --json --plain --no-color --token-file --token-fd" ;;
-    decrypt) local flags="--timeout --json --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out" ;;
-    *) local flags="" ;;
-  esac
-  COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
-}
-complete -F _burnerpad burnerpad
-`,
-	"zsh": `#compdef burnerpad
-_burnerpad() {
-  local -a commands globals flags
-  commands=(
-    'create:encrypt and store a text secret'
-    'reveal:claim and decrypt a full share URL'
-    'burn:revoke without revealing'
-    'decrypt:decrypt a preserved blob offline'
-    'words:print the shared wordlist'
-    'completion:print a shell completion'
-    'version:print build and protocol identity'
-    'licenses:print license notices'
-    'help:print help'
-  )
-  globals=(--server --timeout --json --plain --no-color)
-  if (( CURRENT == 2 )); then
-    _describe 'command' commands
-    return
-  fi
-  case $words[2] in
-    create) flags=($globals --ttl --input --ask --passphrase-file --passphrase-fd) ;;
-    reveal) flags=($globals --ask --passphrase-file --passphrase-fd --keep-blob --out) ;;
-    burn) flags=($globals --token-file --token-fd) ;;
-    decrypt) flags=(--timeout --json --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out) ;;
-    *) flags=() ;;
-  esac
-  _describe 'option' flags
-}
-compdef _burnerpad burnerpad
-`,
-	"fish": `set -l burnerpad_commands create reveal burn decrypt words completion version licenses help
-complete -c burnerpad -f -n "not __fish_seen_subcommand_from $burnerpad_commands" -a "$burnerpad_commands"
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn' -l server -r -d 'server origin'
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn' -l timeout -r -d 'request deadline'
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l json -d 'stable JSON result'
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l plain -d 'accessible line prompts'
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l no-color -d 'disable color'
-complete -c burnerpad -n '__fish_seen_subcommand_from create' -l ttl -r
-complete -c burnerpad -n '__fish_seen_subcommand_from create' -l input -rF
-complete -c burnerpad -n '__fish_seen_subcommand_from reveal' -l keep-blob -rF
-complete -c burnerpad -n '__fish_seen_subcommand_from reveal decrypt' -l out -rF
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l passphrase-file -rF
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l passphrase-fd -r
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal decrypt' -l ask
-complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-file -rF
-complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-fd -r
-`,
-	"powershell": `Register-ArgumentCompleter -Native -CommandName burnerpad -ScriptBlock {
-  param($wordToComplete, $commandAst, $cursorPosition)
-  $commands = @('create','reveal','burn','decrypt','words','completion','version','licenses','help')
-  $globals = @('--server','--timeout','--json','--plain','--no-color')
-  $command = $commandAst.CommandElements | ForEach-Object { $_.Value } | Where-Object { $_ -in $commands } | Select-Object -First 1
-  $options = switch ($command) {
-    'create'  { $globals + @('--ttl','--input','--ask','--passphrase-file','--passphrase-fd') }
-    'reveal'  { $globals + @('--ask','--passphrase-file','--passphrase-fd','--keep-blob','--out') }
-    'burn'    { $globals + @('--token-file','--token-fd') }
-    'decrypt' { @('--timeout','--json','--plain','--no-color','--blob-file','--ask','--passphrase-file','--passphrase-fd','--out') }
-    default   { if ($null -eq $command) { $commands + $globals } else { @() } }
-  }
-  $options |
-    Where-Object { $_ -like "$wordToComplete*" } |
-    ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
-}
-`,
-}
-
-func runCompletion(a *application, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
-		return usage("invalid_option", "global operation options do not apply to completion")
-	}
-	if len(positionals) != 1 {
-		return usage("invalid_input", "completion needs bash, zsh, fish, or powershell")
-	}
-	script, ok := completionScripts[positionals[0]]
-	if !ok {
-		return usage("invalid_input", "completion needs bash, zsh, fish, or powershell")
-	}
-	if _, err := fmt.Fprint(a.env.Stdout, script); err != nil {
-		return local("cannot write completion script")
 	}
 	return nil
 }

@@ -29,6 +29,9 @@ derived from the immutable release tag and never hardcoded in source.
 
 - Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a
   decrypt operation during `create --ask`.
+- Generate Bash, Zsh, Fish, and PowerShell command/option vocabularies from the runtime flag schema; leading
+  options no longer hide the command, value positions no longer suggest flags, and offline decrypt no longer
+  suggests network flags.
 
 ### Removed
 

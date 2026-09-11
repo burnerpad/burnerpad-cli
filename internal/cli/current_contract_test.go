@@ -259,6 +259,7 @@ func TestCurrentProcessRejectsInapplicableGlobalOptions(t *testing.T) {
 		{"version", "--json"},
 		{"words", "--timeout", "1s"},
 		{"decrypt", "--timeout", "1s", "--blob-file", "blob"},
+		{"decrypt", "--server", "https://example.invalid", "--blob-file", "blob"},
 	} {
 		e, _, _ := contractEnv(args, "")
 		if code := Run(e); code != 2 {
