@@ -1,9 +1,10 @@
 #!/bin/sh
-# burnerpad installer — demoted, checksum-pinned, no-sudo (ARCHITECTURE.md §24).
+# burnerpad installer template — rendered release copies are checksum-pinned and no-sudo (ADR-0038).
 #
-# The documented way to use this script is: DOWNLOAD IT, READ IT, THEN RUN IT.
+# The documented way to use a rendered release copy is: DOWNLOAD IT, READ IT,
+# THEN RUN IT.
 # Its trust root is the text you are reading, not the CDN it fetches from:
-# the release repository, version, and per-target SHA256s below are embedded at
+# the repository, version, and per-target SHA256s are embedded in that copy at
 # release time, so a swapped artifact fails the hash check.
 #
 #   sh install.sh              install to ~/.local/bin (or $BURNERPAD_INSTALL_DIR)
@@ -38,7 +39,8 @@ esac
 DIR="${BURNERPAD_INSTALL_DIR:-$HOME/.local/bin}"
 
 if [ "$VERSION" = "0.0.0-dev" ]; then
-    echo "this is the unreleased template installer; use a release copy from" >&2
+    echo "this is the unreleased template installer; when a release is published," >&2
+    echo "obtain its rendered installer from" >&2
     echo "https://github.com/$REPO/releases" >&2
     exit 1
 fi
@@ -48,7 +50,7 @@ arch=$(uname -m)
 case "$os" in
     Linux) os=linux ;;
     Darwin) os=darwin ;;
-    *) echo "unsupported OS: $os (Windows: use the release zip)" >&2; exit 1 ;;
+    *) echo "unsupported OS: $os (Windows uses a zip attached to a published release)" >&2; exit 1 ;;
 esac
 case "$arch" in
     x86_64 | amd64) arch=amd64 ;;

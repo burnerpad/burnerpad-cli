@@ -1,4 +1,4 @@
-# Main CI: correctness gates on every push/PR (ARCHITECTURE.md §20, §22; TASKS.md T0.4).
+# Main CI: correctness gates on every push and pull request.
 name: ci
 on:
   push: { branches: [main] }
@@ -13,15 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with: { go-version-file: go.mod } # the repo, not the workflow, decides the compiler (§22.3)
+        with: { go-version-file: go.mod } # go.mod, not the workflow, decides the compiler.
       - name: gofmt
         run: test -z "$(gofmt -l . | grep -v '^prototype/')"
       - run: go vet ./...
       - name: staticcheck
         run: |
           # GOBIN-only install so the module's go.mod/go.sum stay untouched (dep freeze).
-          GOBIN=$RUNNER_TEMP/bin go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
-          $RUNNER_TEMP/bin/staticcheck ./...
+          GOBIN="$RUNNER_TEMP/bin" go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          "$RUNNER_TEMP/bin/staticcheck" ./...
       - name: dependency freeze + import allowlist + decode gate
         run: ./scripts/check-deps.sh
 
@@ -99,7 +99,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
-      - name: bounded fuzz on the attacker-byte parsers (§14.3)
+      - name: bounded fuzz on the attacker-byte parsers
         run: |
           go test ./envelope -fuzz FuzzDecodeCanonical -fuzztime 30s
           go test ./internal/id -fuzz FuzzNormalizeID -fuzztime 20s
@@ -113,5 +113,5 @@ jobs:
         with: { go-version-file: go.mod }
       - name: build all six targets with the canonical flags block
         run: make cross
-      - name: size gate ≤ 9 MiB (§22.2)
+      - name: size gate ≤ 9 MiB
         run: ./scripts/check-size.sh dist/*

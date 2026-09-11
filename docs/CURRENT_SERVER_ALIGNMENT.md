@@ -1,12 +1,12 @@
 # Burnerpad CLI v1.0.0 — Current Server Alignment Plan
 
-Status: implemented; local verification complete. The first scheduled Lite-main CI run and protected
-release run necessarily remain post-merge acceptance steps.
+Status: pre-release. A successful scheduled Lite-main CI run and the protected release dispatch remain
+acceptance steps before `v1.0.0`; local checks do not satisfy either external gate.
 
 This plan replaces the unreleased pre-1.0 client behavior with the current burnerpad-lite product contract.
 It is the implementation checklist for the first public CLI release, `v1.0.0`. The accepted decisions are
-recorded in ADR-0021 through ADR-0037. Superseded ADRs and the explicitly historical glossary remain only as
-decision history.
+listed in the [ADR index](adr/README.md), beginning with ADR-0021 for the current-server redesign.
+Superseded ADRs and the explicitly historical glossary remain only as decision history.
 
 There are no remaining product decisions in this plan. Discoveries that contradict the current
 burnerpad-lite source are factual defects to resolve against the pinned server revision, not reasons to
@@ -274,8 +274,8 @@ requested artifact reached its selected destination.
 - Remove fragment-shaped error categories, scrubber exceptions, differential-driver modes, and fuzz cases
   that exist only for suite `0x01`.
 
-Primary files: `envelope/*.go`, `envelope/*_test.go`, `internal/difftest/`, `spec/SPEC.md`,
-`scripts/sync-vectors.sh`, and `scripts/check-deps.sh`.
+Primary files: `envelope/*.go`, `envelope/*_test.go`, `spec/SPEC.md`, `scripts/sync-vectors.sh`, and
+`scripts/check-deps.sh`.
 
 ### B. Replace identifier and target parsing
 
@@ -425,10 +425,11 @@ workflows, the Lite revision file, `internal/cli/clitest/`, and browser orchestr
 - Make the release workflow run the pinned real-server/browser gate before publishing.
 - Render the version/checksum-pinned `install.sh` as a `v1.0.0` release artifact from the tag and generated
   checksums. Do not require a post-release source commit to change its version.
-- Remove `v0.1.0`/`v0.2.x` milestones and stale channel comments. Reconcile the first-release distribution
-  list with ADR-0019 and verify every advertised channel exists before listing it as official.
+- Keep the version-one official binary channel limited to the immutable GitHub Release assets in ADR-0038.
+  Do not advertise a future channel until Burnerpad owns it and has verified publication and installation.
 - Re-run cross-platform tests, `go vet`, formatting, supported suite vectors, fuzz smoke, `govulncheck`, size,
-  SBOM, signatures, provenance, and reproducibility checks on the tag commit.
+  SBOM generation, the keyless Cosign checksum bundle, immutable-release attestation, and post-publication
+  reproducibility checks.
 - Build the tag with the latest supported stable Go patch and keep the `go 1.25` module compatibility floor
   unless the dependency graph makes a reviewed increase necessary.
 
@@ -437,7 +438,8 @@ workflows, the Lite revision file, `internal/cli/clitest/`, and browser orchestr
 The implementation is ready to tag only when all of the following are true:
 
 - `go test ./...` passes on Linux, macOS, and Windows.
-- No shipped command, flag, help entry, completion, source import path, or test advertises retired behavior.
+- No command, flag, help entry, completion, source import path, or test intended for the release advertises
+  retired behavior.
 - All applicable suite-`0x02` vectors and browser/CLI differential checks pass.
 - The pinned real Lite revision passes all three interoperability directions.
 - The scheduled Lite-main job exists and has produced a successful run.

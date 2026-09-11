@@ -1,6 +1,6 @@
 # ADR-0034: Release from the trusted default branch into an immutable draft
 
-Date: 2026-09-10 · Status: Accepted
+Date: 2026-09-10 · Status: Accepted · Supersedes in part: [ADR-0017](0017-reproducible-builds-keyless-signing.md) (release authorization)
 
 GitHub loads a tag-push workflow from the tagged commit, so a tag pointing to
 old code can revive an old privileged workflow. Releases therefore start with

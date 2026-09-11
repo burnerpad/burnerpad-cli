@@ -1,4 +1,4 @@
-# Nightly long fuzz (ARCHITECTURE.md §14.3). Crashers get committed as
+# Nightly long fuzz. Crashers get committed as
 # regression tests; the committed corpus replays as ordinary tests on every push.
 name: fuzz-nightly
 on:

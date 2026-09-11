@@ -37,8 +37,7 @@ and drives browser→CLI, CLI→browser, and CLI→CLI flows. Update the pin onl
 ## Manual smoke checklist (Windows / macOS interactive paths)
 
 CI covers the pure state machine and the Linux PTY end-to-end run; before a
-release touching `internal/term`, walk this by hand where possible
-(ARCHITECTURE.md §20):
+release touching `internal/term`, walk this by hand where possible:
 
 1. Windows Terminal: `burnerpad create` full interactive flow; autocomplete
    ghost text renders; alt-screen viewer opens and restores.

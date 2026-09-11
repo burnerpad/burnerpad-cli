@@ -1,6 +1,6 @@
 # ADR-0017: Reproducible builds + Sigstore keyless signing; no minisign; notarization deferred
 
-Date: 2026-08-18 · Status: Release-path portion superseded by [ADR-0034](0034-trusted-default-branch-immutable-releases.md) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §22, §23, §27
+Date: 2026-08-18 · Status: Accepted in part · Release authorization superseded by: [ADR-0034](0034-trusted-default-branch-immutable-releases.md) · Distribution scope superseded by: [ADR-0038](0038-github-releases-only-for-version-one.md) · Source: historical pre-release architecture
 
 ## Context
 

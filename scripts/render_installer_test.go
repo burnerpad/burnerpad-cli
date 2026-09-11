@@ -15,7 +15,8 @@ import (
 func TestInstallerAcceptsOnlyDocumentedArguments(t *testing.T) {
 	const (
 		usage              = "usage: sh install.sh [--verify-only]\n"
-		developmentRefusal = "this is the unreleased template installer; use a release copy from\n" +
+		developmentRefusal = "this is the unreleased template installer; when a release is published,\n" +
+			"obtain its rendered installer from\n" +
 			"https://github.com/burnerpad/burnerpad-cli/releases\n"
 	)
 	tests := []struct {

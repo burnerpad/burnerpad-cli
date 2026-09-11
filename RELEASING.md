@@ -1,9 +1,11 @@
 # Releasing
 
-Every release, however trivial, goes through the full pipeline — no hand-built
-binaries, ever (ARCHITECTURE.md §25). The publisher is loaded only from the
-current default branch, pins the requested commit, and re-runs the entire test
-suite before it receives publication authority.
+Every release, however trivial, goes through the protected pipeline—never use
+hand-built binaries. The publisher is loaded only from the current default
+branch, pins the requested commit, and re-runs the release-specific test,
+drift, and interoperability gates before it receives publication authority.
+The protected branch's required checks cover the broader platform and analysis
+matrix before that commit reaches the default branch.
 
 ## Required GitHub settings
 
@@ -50,8 +52,10 @@ attestation.
 
 ## Cut a release
 
-1. Ensure `CHANGELOG.md` has the version's entry (Keep-a-Changelog format;
-   security entries list affected versions and advisory IDs).
+1. In the final release-preparation pull request, promote the relevant
+   `CHANGELOG.md` items from `Unreleased` into the version's dated entry
+   (Keep-a-Changelog format; security entries list affected versions and
+   advisory IDs). Do not publish while the release remains only `Unreleased`.
 2. Fetch the remote default branch and record its full commit:
 
    ```sh
@@ -90,7 +94,7 @@ still resolves to the requested commit before retrying; GoReleaser replaces an
 incomplete draft for the same tag. If an immutable release is deleted, GitHub
 still prevents reuse of its tag name.
 
-## Release-QA checklist (§27)
+## Release-QA checklist
 
 ⚙ = CI-enforced; listed so a human confirms the enforcement actually ran.
 
@@ -104,9 +108,10 @@ still prevents reuse of its tag name.
 5. ⚙ Size gate ≤ 9 MiB × 6 targets; import allowlist green
    (`scripts/check-size.sh`, `scripts/check-deps.sh`).
 6. ⚙ `govulncheck` clean; toolchain at the latest patch of its minor.
-7. Cosign bundle verifies with the README one-liner *as a user would run it*,
+7. The Cosign bundle verifies with the commands in
+   [SECURITY.md](SECURITY.md#release-verification) *as a user would run them*,
    on a machine that is not the release runner.
 8. `repro-verify` green (announcement waits for it).
 9. CHANGELOG entry present; tag-derived `burnerpad version` output correct on a
-   tap-installed binary, not a dev build.
+   binary extracted from a published release archive, not a dev build.
 10. NOTICE present in: archive, deb/rpm/apk, `burnerpad licenses` output.
