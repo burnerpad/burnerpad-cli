@@ -6,14 +6,11 @@ burnerpad - encrypted, one-time text secrets compatible with burnerpad-lite
 
 # SYNOPSIS
 
-*burnerpad create* [*--server* _ORIGIN_] [*--ttl* _DURATION_] [*--input* _FILE_]
-[*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_] [*--json*]
+*burnerpad create* [*--server* _ORIGIN_] [*--ttl* _DURATION_] [*--input* _FILE_] [*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_] [*--json*]
 
-*burnerpad reveal* [*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_]
-[*--keep-blob* _FILE_] [*--out* _FILE_ | *--json*] _FULL_URL_
+*burnerpad reveal* [*--ask* | *--passphrase-file* _FILE_ | *--passphrase-fd* _FD_] [*--keep-blob* _FILE_] [*--out* _FILE_ | *--json*] [_FULL_URL_]
 
-*burnerpad burn* [*--server* _ORIGIN_] [*--token-file* _FILE_ | *--token-fd* _FD_]
-[_FULL_URL_ | _ID_]
+*burnerpad burn* [*--server* _ORIGIN_] [*--token-file* _FILE_ | *--token-fd* _FD_] [_FULL_URL_ | _ID_]
 
 *burnerpad decrypt* *--blob-file* _FILE_|- [*--ask* | *--passphrase-file* _FILE_ |
 *--passphrase-fd* _FD_] [*--out* _FILE_ | *--json*]
@@ -51,6 +48,8 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 
 *words*, *completion*, *version*, *licenses*, *help*
 	Print purpose-specific utility output. Completion supports bash, zsh, fish, and powershell.
+	*burnerpad help* _COMMAND_, *burnerpad* _COMMAND_ *--help*, and *burnerpad* _COMMAND_ *-h*
+	print identical command-specific help without executing the command.
 
 # OPTIONS
 
@@ -64,10 +63,10 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 	Emit one stable JSON success or error object. Mutually exclusive with *--out*.
 
 *--plain*
-	Use accessible line prompts and avoid raw-mode/alternate-screen behavior.
+	Use accessible line prompts and avoid raw-mode/alternate-screen behavior for create, reveal, and decrypt.
 
 *--no-color*
-	Disable color. _NO_COLOR_ and _TERM=dumb_ are also honored.
+	Disable color for create, reveal, and decrypt. _NO_COLOR_ and _TERM=dumb_ are also honored.
 
 *--ttl* _DURATION_
 	Optional positive whole seconds, as an integer or a duration such as 15m. The server-returned effective

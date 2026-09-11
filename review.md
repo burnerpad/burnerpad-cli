@@ -245,6 +245,8 @@ The application implements the core create/reveal/burn/decrypt paths, but not ev
 - Credential files called “protected” are opened without checking ownership, type, permissions, or symlinks.
 - `scripts/sync-vectors.sh` uses a predictable `/tmp/bp-wordlist.$$` path.
 - The changelog says 1.0.0 is released, while this checkout has no tag, the installer is still a refusing development template, and release tasks remain unchecked.
+- `burnerpad words` omits the stderr attribution required by accepted ADR-0018 before redistributing the
+  embedded CC BY 3.0 wordlist.
 
 Finding 9 task ledger:
 
@@ -257,12 +259,13 @@ Finding 9 task ledger:
 - [x] 9.7 Remove the unused seeded-retry subsystem.
 - [x] 9.8 Correct completion grammar and unsupported flag suggestions.
 - [x] 9.9 Warn when `burn` receives a share URL in argv.
-- [ ] 9.10 Add installation guidance and complete command help behavior/topics.
+- [x] 9.10 Add installation guidance and complete command help behavior/topics.
 - [ ] 9.11 Make the installer reject unknown and extra arguments.
 - [ ] 9.12 Keep rejected pasted tokens out of diagnostics.
 - [ ] 9.13 Enforce the protected credential-file ownership/type/mode/symlink contract.
 - [ ] 9.14 Replace the predictable vector-sync temporary path.
 - [ ] 9.15 Make all pre-release changelog, installer, documentation, and task claims truthful.
+- [ ] 9.16 Restore the documented wordlist attribution on stderr.
 
 ## Minimality assessment
 

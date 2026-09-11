@@ -24,6 +24,7 @@ derived from the immutable release tag and never hardcoded in source.
   compatibility run against burnerpad-lite `main`.
 - Tag-derived release identity and a release-rendered checksum-pinned installer, with no version constant or
   post-release version-bump commit.
+- Truthful installation guidance for the release-rendered installer and pre-release source evaluation.
 
 ### Changed
 
@@ -32,6 +33,8 @@ derived from the immutable release tag and never hardcoded in source.
 - Generate Bash, Zsh, Fish, and PowerShell command/option vocabularies from the runtime flag schema; leading
   options no longer hide the command, value positions no longer suggest flags, and offline decrypt no longer
   suggests network flags.
+- Generate general help and all nine command topics from the command schema and scoped flag sets;
+  `COMMAND --help` and `COMMAND -h` now match `help COMMAND` without executing the target command.
 
 ### Removed
 
@@ -40,6 +43,8 @@ derived from the immutable release tag and never hardcoded in source.
 - Delete the unused retained-word retry state, seed parser, rendering branch, and duplicate tests; local
   wrong-phrase retries still re-enter a complete phrase against the already-held ciphertext without a network
   retry.
+- Stop accepting inert `burn --plain` and `burn --no-color`; burn has no phrase editor, viewer, or colored
+  output for those terminal-presentation controls to affect.
 
 ### Security
 

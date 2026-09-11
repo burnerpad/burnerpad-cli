@@ -317,6 +317,46 @@ func TestReleaseDocumentationRequiresImmutableReleases(t *testing.T) {
 	}
 }
 
+func TestReadmeInstallationUsesOnlyReleaseArtifacts(t *testing.T) {
+	raw, err := os.ReadFile("../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	documentation := string(raw)
+	start := strings.Index(documentation, "## Installation\n")
+	if start < 0 {
+		t.Fatal("README has no Installation section")
+	}
+	section := documentation[start+len("## Installation\n"):]
+	if end := strings.Index(section, "\n## "); end >= 0 {
+		section = section[:end]
+	}
+	for _, want := range []string{
+		"is the only official binary",
+		"If that page has no release, Burnerpad has not shipped yet",
+		"source tree is a refusing release template",
+		"--proto '=https' --proto-redir '=https'",
+		"releases/latest/download/install.sh",
+		"cat burnerpad-install.sh",
+		"sh burnerpad-install.sh --verify-only",
+		"sh burnerpad-install.sh\n",
+		"The script itself is the trust root",
+		"there is no Windows installer",
+		"from Git Bash or WSL",
+		"burnerpad.exe` to a directory on `PATH",
+		"make build",
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("README installation guidance does not contain %q", want)
+		}
+	}
+	for _, forbidden := range []string{"raw.githubusercontent.com", "| sh", "go install", "@latest"} {
+		if strings.Contains(section, forbidden) {
+			t.Errorf("README installation guidance contains unsafe or unavailable path %q", forbidden)
+		}
+	}
+}
+
 func TestReleaseReproductionMatchesPublisherMetadataAndAuthenticatesAssets(t *testing.T) {
 	raw, err := os.ReadFile("../.github/workflows/repro-verify.yml")
 	if err != nil {

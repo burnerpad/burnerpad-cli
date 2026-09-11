@@ -23,7 +23,7 @@ func TestCompletionSchemaHasExactAcceptedOptions(t *testing.T) {
 	wantOptions := map[string][]string{
 		"create":     {"--ask", "--input", "--json", "--no-color", "--passphrase-fd", "--passphrase-file", "--plain", "--server", "--timeout", "--ttl"},
 		"reveal":     {"--ask", "--json", "--keep-blob", "--no-color", "--out", "--passphrase-fd", "--passphrase-file", "--plain", "--server", "--timeout"},
-		"burn":       {"--json", "--no-color", "--plain", "--server", "--timeout", "--token-fd", "--token-file"},
+		"burn":       {"--json", "--server", "--timeout", "--token-fd", "--token-file"},
 		"decrypt":    {"--ask", "--blob-file", "--json", "--no-color", "--out", "--passphrase-fd", "--passphrase-file", "--plain"},
 		"words":      {},
 		"completion": {},

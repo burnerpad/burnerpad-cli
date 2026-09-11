@@ -58,42 +58,76 @@ func runHelp(a *application, positionals []string) error {
 	if len(positionals) > 1 {
 		return usage("invalid_input", "help accepts at most one command")
 	}
-	text := `burnerpad — encrypted, one-time text secrets
-
-Usage:
-  burnerpad create [--server ORIGIN] [--ttl DURATION] [--input FILE]
-  burnerpad reveal [options] FULL_SHARE_URL
-  burnerpad burn [options] [FULL_SHARE_URL|ID]
-  burnerpad decrypt --blob-file FILE|-
-  burnerpad words
-  burnerpad completion bash|zsh|fish|powershell
-  burnerpad version
-  burnerpad licenses
-  burnerpad help [COMMAND]
-
-Network commands disclose their selected server before sending one request.
-Passphrases and management tokens are accepted only from protected files,
-descriptors 3 or greater, or the controlling-terminal prompt.
-
-Run "burnerpad help create", "burnerpad help reveal", "burnerpad help burn",
-or "burnerpad help decrypt" for command options.
-`
-	if len(positionals) == 1 {
-		switch positionals[0] {
-		case "create":
-			text = "Usage: burnerpad create [--server ORIGIN] [--timeout DURATION] [--json] [--plain] [--no-color] [--ttl DURATION] [--input FILE] [--ask|--passphrase-file FILE|--passphrase-fd FD]\n"
-		case "reveal":
-			text = "Usage: burnerpad reveal [--server IGNORED] [--timeout DURATION] [--json] [--plain] [--no-color] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--keep-blob FILE] [--out FILE] FULL_SHARE_URL\n"
-		case "burn":
-			text = "Usage: burnerpad burn [--server ORIGIN] [--timeout DURATION] [--json] [--plain] [--no-color] [--token-file FILE|--token-fd FD] [FULL_SHARE_URL|ID]\nA piped create receipt supplies the link, server, and management token.\n"
-		case "decrypt":
-			text = "Usage: burnerpad decrypt [--json] [--plain] [--no-color] --blob-file FILE|- [--ask|--passphrase-file FILE|--passphrase-fd FD] [--out FILE]\n"
-		default:
+	var text string
+	if len(positionals) == 0 {
+		text = generalHelpText()
+	} else {
+		spec := findCommandSpec(positionals[0])
+		if spec == nil {
 			return usage("invalid_input", "unknown help topic")
 		}
+		text = commandHelpText(spec)
 	}
 	if _, err := fmt.Fprint(a.env.Stdout, text); err != nil {
 		return local("cannot write help")
 	}
 	return nil
+}
+
+func generalHelpText() string {
+	var text strings.Builder
+	text.WriteString("burnerpad — encrypted, one-time text secrets\n\nUsage:\n  burnerpad COMMAND [OPTIONS]\n  burnerpad --help | -h\n  burnerpad --version\n\nCommands:\n")
+	width := 0
+	for _, spec := range commandSpecs {
+		if len(spec.name) > width {
+			width = len(spec.name)
+		}
+	}
+	for _, spec := range commandSpecs {
+		fmt.Fprintf(&text, "  %-*s  %s\n", width, spec.name, spec.description)
+	}
+	text.WriteString(`
+Network commands disclose their selected server before sending one request.
+Passphrases come only from protected files, descriptors 3 or greater, or the
+controlling-terminal prompt. Management tokens use those protected sources or
+a piped create receipt.
+
+Run "burnerpad help COMMAND", "burnerpad COMMAND --help", or
+"burnerpad COMMAND -h" for command-specific help.
+`)
+	return text.String()
+}
+
+func commandHelpText(spec *commandSpec) string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "Usage:\n  burnerpad %s", spec.name)
+	if spec.usage != "" {
+		fmt.Fprintf(&text, " %s", spec.usage)
+	}
+	fmt.Fprintf(&text, "\n\n%s\n", spec.details)
+
+	flags := optionsForCommand(spec)
+	if len(flags) == 0 {
+		return text.String()
+	}
+	labels := make([]string, len(flags))
+	width := 0
+	for i, option := range flags {
+		labels[i] = option.name
+		if option.takesValue {
+			valueName := option.valueName
+			if valueName == "" {
+				valueName = "VALUE"
+			}
+			labels[i] += " " + valueName
+		}
+		if len(labels[i]) > width {
+			width = len(labels[i])
+		}
+	}
+	text.WriteString("\nOptions:\n")
+	for i, option := range flags {
+		fmt.Fprintf(&text, "  %-*s  %s\n", width, labels[i], option.description)
+	}
+	return text.String()
 }
