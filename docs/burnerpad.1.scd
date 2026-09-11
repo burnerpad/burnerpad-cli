@@ -42,6 +42,7 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 *burn*
 	Revoke without reading. Input is a piped create JSON receipt, a full URL, or a bare current ID. The
 	management token comes from the receipt, protected file/fd, or a hidden controlling-terminal prompt.
+	Identifier input is ASCII-only; lowercase and hyphens are accepted, with Crockford I/L/O aliases.
 
 *decrypt*
 	Decrypt a canonical base64url recovery blob locally. This command creates no HTTP client.

@@ -7,6 +7,11 @@ import { tmpdir } from "node:os";
 const cli = process.env.BURNERPAD_BIN;
 const server = process.env.BROWSER_TEST_BASE_URL;
 const phrase = "aardvark carrot embroidery hardhat lyrics porcupine suave";
+// A random 26-character ID misses one requested digit with probability (31/32)^26.
+// This cap puts each target's miss chance below 1.2e-23 and bounds three CI attempts at 576 creates.
+const aliasAttemptLimit = 64;
+const canonicalIDPattern = /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$/;
+const managementTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 if (!cli || !server) throw new Error("BURNERPAD_BIN and BROWSER_TEST_BASE_URL are required");
 
@@ -43,6 +48,73 @@ function runError(args, input, exit, code) {
   expect(result.status).toBe(exit);
   expect(JSON.parse(result.stdout).code).toBe(code);
   return result;
+}
+
+async function createAliasRow(request) {
+  let response;
+  try {
+    response = await request.post("/api/secrets", { data: { blob: "AA", ttl: 60 } });
+  } catch {
+    throw new Error("alias fixture create request failed");
+  }
+  if (response.status() !== 200) {
+    await response.dispose();
+    throw new Error("alias fixture create failed");
+  }
+
+  let row;
+  try {
+    row = await response.json();
+  } catch {
+    throw new Error("alias fixture create returned invalid JSON");
+  } finally {
+    await response.dispose();
+  }
+  if (!row || !canonicalIDPattern.test(row.id) || !managementTokenPattern.test(row.mgmt_token) || row.ttl !== 60) {
+    throw new Error("alias fixture create returned an invalid row");
+  }
+  return { id: row.id, managementToken: row.mgmt_token };
+}
+
+async function burnAliasRow(request, row, allowMissing = false) {
+  let response;
+  try {
+    response = await request.post(`/api/secrets/${row.id}/burn`, {
+      data: { mgmt_token: row.managementToken }
+    });
+  } catch {
+    throw new Error("alias fixture cleanup request failed");
+  }
+  const status = response.status();
+  await response.dispose();
+  if (status !== 200 && !(allowMissing && status === 404)) {
+    throw new Error("alias fixture cleanup failed");
+  }
+  return status;
+}
+
+async function findAliasRow(request, canonicalCharacter, alias) {
+  for (let attempt = 0; attempt < aliasAttemptLimit; attempt++) {
+    const row = await createAliasRow(request);
+    if (row.id.includes(canonicalCharacter)) return row;
+    await burnAliasRow(request, row);
+  }
+  throw new Error(`could not mint a row for the ${alias} alias within ${aliasAttemptLimit} attempts`);
+}
+
+function assertSafeAliasBurn(alias, row, aliasedID, result) {
+  if (result.status !== 0) throw new Error(`CLI burn failed for the ${alias} alias`);
+  for (const stream of [result.stdout, result.stderr]) {
+    if (typeof stream === "string" && [row.id, row.managementToken, aliasedID].some((value) => stream.includes(value))) {
+      throw new Error(`CLI output exposed a capability for the ${alias} alias`);
+    }
+  }
+
+  const expectedStdout = JSON.stringify({ status: "burned", server }) + "\n";
+  const expectedStderr = `burnerpad: server: ${server}\n`;
+  if (result.stdout !== expectedStdout || result.stderr !== expectedStderr) {
+    throw new Error(`CLI burn returned an unexpected result for the ${alias} alias`);
+  }
 }
 
 async function pastePhrase(page, words) {
@@ -108,6 +180,32 @@ test("create receipts, full URLs, and bare normalized IDs all burn", async () =>
   runError(["burn", "--server", server, "--json", "--token-file", protectedFile("wrong-token", wrong), id], undefined, 4, "secret_unavailable");
   expect(run(["burn", "--server", server, "--json", "--token-file", protectedFile("token", bareID.mgmt_token), id]).json)
     .toEqual({ status: "burned", server });
+});
+
+test("Go CLI burns real Lite rows through every Crockford alias", async ({ request }) => {
+  for (const { canonicalCharacter, alias } of [
+    { canonicalCharacter: "1", alias: "I" },
+    { canonicalCharacter: "1", alias: "L" },
+    { canonicalCharacter: "0", alias: "O" }
+  ]) {
+    const row = await findAliasRow(request, canonicalCharacter, alias);
+    let aliasBurned = false;
+    try {
+      const aliasedID = row.id.replace(canonicalCharacter, alias);
+      const result = runRaw([
+        "burn", "--server", server, "--json",
+        "--token-file", protectedFile("token", row.managementToken),
+        aliasedID
+      ]);
+      assertSafeAliasBurn(alias, row, aliasedID, result);
+      aliasBurned = true;
+    } finally {
+      const cleanupStatus = await burnAliasRow(request, row, true);
+      if (aliasBurned && cleanupStatus !== 404) {
+        throw new Error(`CLI burn did not revoke the selected row for the ${alias} alias`);
+      }
+    }
+  }
 });
 
 test("server effective TTL is returned for default and clamped requests", async () => {

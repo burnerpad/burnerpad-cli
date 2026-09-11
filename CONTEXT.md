@@ -31,7 +31,8 @@ _Avoid_: CLI secret, browser secret
 
 **Secret identifier**:
 The canonical 26-character uppercase Crockford-base32 identifier assigned by the server. User input may use
-the server's lowercase, separator, and `I`/`L`/`O` aliases before normalization.
+ASCII lowercase letters, hyphens, and the server's `I`/`L`/`O` aliases before normalization; non-ASCII input
+is rejected before case folding.
 _Avoid_: Short ID, token
 
 **Generated phrase**:

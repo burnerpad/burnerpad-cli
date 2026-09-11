@@ -168,7 +168,8 @@ burnerpad burn [--server ORIGIN] [--token-file FILE | --token-fd FD]
 
 Burn accepts either a piped create receipt, a full URL plus a protected token source, or a bare ID
 plus a protected token source. Without a token file or descriptor it prompts without echo. Tokens
-are never accepted through argv or environment variables.
+are never accepted through argv or environment variables. Identifier input is ASCII-only; lowercase
+letters and hyphens are accepted, with Crockford `I`/`L` folded to `1` and `O` folded to `0`.
 
 ### Offline decrypt
 

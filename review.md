@@ -321,7 +321,7 @@ Finding 11 task ledger:
 - [x] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
 - [x] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
 - [x] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
-- [ ] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
+- [x] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
 - [ ] 11.5 Prove real Lite expiry end to end through the CLI.
 - [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
 - [ ] 11.7 Observe a successful scheduled Lite-main run after the workflow reaches `main` (GitHub-only).
@@ -353,6 +353,21 @@ own failure output non-sensitive. Tight race repetition also exposed and fixed a
 test-only terminal event-ownership race. The full test, vet, race, Staticcheck,
 dependency, import, and decode-gate suites pass without a production redaction
 change: no diagnostic disclosure was found.
+
+11.4 completed 2026-09-11: identifier normalization now matches pinned Lite
+revision `01d9a3ffa29d8fdc4e62ed28e43239c3b3c04d54` by rejecting non-ASCII bytes
+before case folding. This closes the reverse-parity hole where Go's Unicode
+uppercasing accepted dotless-i and long-s inputs that Lite rejects, and replaces
+the allocating normalization path with one fixed-buffer ASCII pass. Exact unit
+cases pin `I`/`L` to `1` and `O` to `0`; parser regressions and fuzzing pin the
+non-ASCII boundary. The real Chromium/Lite suite now creates separate live rows
+containing each required canonical digit, revokes them through the CLI's bare
+aliased-ID path, compares both output streams exactly, and proves each mutation
+through a canonical `404` follow-up. Nonmatches are revoked immediately, all
+selected rows have `finally` cleanup and a 60-second expiry backstop, and the
+bounded search has less than a 3.5×10⁻²³ aggregate miss probability. All six
+interoperability cases, the full Go test/vet/race/Staticcheck gates, ten seconds
+of focused fuzzing, dependency checks, and six size-gated cross-builds pass.
 
 ## What is strong
 

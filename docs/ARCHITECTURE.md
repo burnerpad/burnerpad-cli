@@ -95,10 +95,10 @@ redirects. No runtime stats or compatibility probe is made.
 
 ## Identifier and URL rules
 
-`id.Normalize` uppercases, removes hyphens, maps `I`/`L` to `1` and `O` to `0`, then requires exactly 26
-characters from the Crockford alphabet. Reveal accepts only a full `http(s)://host[:port]/s/<id>` URL.
-Burn additionally accepts a bare ID. Credentials, fragments, queries, escaped IDs, path aliases, and
-trailing path segments fail before network access.
+`id.Normalize` rejects non-ASCII input before case folding, uppercases ASCII letters, removes hyphens, maps
+`I`/`L` to `1` and `O` to `0`, then requires exactly 26 characters from the Crockford alphabet. Reveal
+accepts only a full `http(s)://host[:port]/s/<id>` URL. Burn additionally accepts a bare ID. Credentials,
+fragments, queries, escaped IDs, path aliases, and trailing path segments fail before network access.
 
 ## Cryptography and phrases
 
