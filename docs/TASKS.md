@@ -6,7 +6,7 @@ they described a different product.
 
 ## Product and crypto
 
-- [x] Support only suite `0x02` in the shipped Go envelope API.
+- [x] Support only suite `0x02` in the Go envelope API.
 - [x] Canonicalize 7–64 distinct shared-list words identically for create, reveal, and decrypt.
 - [x] Generate exactly seven distinct uniformly sampled words.
 - [x] Pin the raw upstream vector file and gate every applicable suite-`0x02` and generic encoding vector,
@@ -48,7 +48,7 @@ they described a different product.
 
 - [x] Record the reviewed burnerpad-lite revision in `.burnerpad-lite-revision`.
 - [x] Gate PRs and releases on browser→CLI, CLI→browser, and CLI→CLI flows against that revision.
-- [x] Run the same Chromium matrix nightly against burnerpad-lite `main`.
+- [x] Schedule the same Chromium matrix nightly against burnerpad-lite `main`.
 - [x] Derive v1 versions from Git tags with no source version bump.
 - [ ] Observe one successful scheduled Lite-main workflow run after merge.
 - [ ] Dispatch `v1.0.0` only after immutable releases are enabled and all repository-required checks are green.

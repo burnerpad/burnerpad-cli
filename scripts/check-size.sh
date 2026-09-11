@@ -1,5 +1,5 @@
 #!/bin/sh
-# CI fence (ARCHITECTURE.md §22.2, M10): any target binary > 9 MiB fails the build.
+# CI fence (ADR-0017): any target binary > 9 MiB fails the build.
 # The gate exists to catch import-graph drift, paired with the go list -deps allowlist.
 set -eu
 LIMIT=9437184 # 9 MiB

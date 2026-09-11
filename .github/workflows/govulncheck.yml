@@ -1,6 +1,6 @@
-# Daily govulncheck (ARCHITECTURE.md §27): the crypto IS the stdlib, so a Go
-# stdlib advisory in crypto/net/encoding is this project's security release
-# trigger (≤ 72 h rebuild, §25).
+# Daily govulncheck: the crypto is in the standard library, so a reachable Go
+# standard-library advisory in crypto, net, or encoding is a security-release
+# trigger.
 name: govulncheck
 on:
   schedule:
@@ -18,5 +18,5 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
       - run: |
-          GOBIN=$RUNNER_TEMP/bin go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-          $RUNNER_TEMP/bin/govulncheck ./...
+          GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          "$RUNNER_TEMP/bin/govulncheck" ./...

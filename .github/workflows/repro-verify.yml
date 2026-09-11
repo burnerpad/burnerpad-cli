@@ -1,4 +1,4 @@
-# repro-verify (ARCHITECTURE.md §22.3): after every release and weekly, a clean
+# repro-verify (ADR-0017): after every release and weekly, a clean
 # container — deliberately a DIFFERENT environment from the ubuntu release
 # runner — rebuilds all six binaries from the tag and compares binary-to-binary
 # sha256 against the released archives. Mismatch = release incident; immutable

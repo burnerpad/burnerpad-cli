@@ -1,7 +1,7 @@
 # Burnerpad CLI architecture
 
-This document specifies the released v1 architecture. Domain terminology lives in [`CONTEXT.md`](../CONTEXT.md),
-and the decisions behind the current boundary are recorded in ADR-0021 through ADR-0035.
+This document specifies the version-one architecture. Domain terminology lives in [`CONTEXT.md`](../CONTEXT.md),
+and the decisions behind the current boundary are listed in the [ADR index](adr/README.md).
 
 ## Product boundary
 
@@ -203,9 +203,16 @@ began cancels that wait normally.
 `.burnerpad-lite-revision` is the reviewed current-server pin. Pull requests and releases run the reusable
 `spec-drift` gate against that exact revision, byte-comparing the vendored specification, vectors, and
 wordlist. They also run real Chromium interoperability in all three directions: browser→CLI, CLI→browser,
-and CLI→CLI. A scheduled workflow runs the same interoperability tests against Lite `main` as an early drift
-warning.
+and CLI→CLI. The `lite-main-interop` workflow is configured to run the same interoperability tests against
+Lite `main` on a schedule as an early drift warning.
+
+GitHub Releases is the only official version-one binary source. A published version-one release will contain
+the platform archives, native package files, archive SBOMs, checksum manifest, keyless Cosign checksum bundle,
+and the release-rendered Linux/macOS installer. External package repositories, registries, and container
+channels are deferred under ADR-0038.
 
 The release version comes exclusively from the immutable `v*` Git tag via linker flags. Source contains no
-release-version constant and a release requires no follow-up version-bump commit. Artifacts are rebuilt from
-the tag, checksummed, SBOMed, signed, provenance-attested, and independently reproducibility-checked.
+release-version constant and a release requires no follow-up version-bump commit. The publisher builds and
+checksums the tag artifacts, emits their SBOMs, signs the checksum manifest, and publishes them inside
+GitHub's immutable-release boundary, which creates a release attestation. After publication,
+`repro-verify` independently rebuilds every binary; announcement waits for that comparison.

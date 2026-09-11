@@ -1,4 +1,4 @@
-# spec-drift (ARCHITECTURE.md §14.1): the vendored SPEC/vectors/wordlist must stay
+# spec-drift: the vendored SPEC/vectors/wordlist must stay
 # byte-identical to the reviewed upstream revision. Runs on pull requests,
 # main pushes, release calls, and weekly so a pin move cannot silently
 # separate the vendored artifacts from its source.

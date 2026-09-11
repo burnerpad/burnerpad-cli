@@ -29,12 +29,12 @@ The script uses no `sudo` and installs to `~/.local/bin` by default. Set `BURNER
 another directory. The script itself is the trust root for its embedded archive checksum. Prereleases must
 be downloaded from their exact tag page rather than the `latest` URL.
 
-Windows archives are available on the Releases page, but there is no Windows installer. Download the
-matching `.zip`, `SHA256SUMS`, and `SHA256SUMS.bundle`; perform
+When a release exists, its Windows archives appear on the Releases page, but there is no Windows installer.
+Download the matching `.zip`, `SHA256SUMS`, and `SHA256SUMS.bundle`; perform
 [release verification](SECURITY.md#release-verification) with Cosign and `sha256sum` from Git Bash or WSL;
 then extract `burnerpad.exe` to a directory on `PATH`.
 
-Before the first release, a source checkout can be built for evaluation with Go 1.25 or newer:
+For source evaluation, a checkout can be built with Go 1.25 or newer:
 
 ```sh
 git clone https://github.com/burnerpad/burnerpad-cli.git
@@ -260,8 +260,8 @@ make lint
 
 CI pins the raw upstream vector file, executes the complete applicable suite-`0x02` and generic encoding
 vectors, byte-checks vendored crypto material, runs six cross-builds, and exercises real Chromium
-interoperability with the reviewed burnerpad-lite revision. A scheduled job runs the same browser/CLI matrix
-against burnerpad-lite `main` to detect future drift.
+interoperability with the reviewed burnerpad-lite revision. The `lite-main-interop` workflow is configured
+to run the same browser/CLI matrix on a schedule against burnerpad-lite `main` to detect future drift.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
 [RELEASING.md](RELEASING.md).

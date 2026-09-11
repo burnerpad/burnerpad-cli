@@ -80,5 +80,6 @@ changed in the repository-transfer commit before publishing from another
 owner.
 
 CI pins and executes the current suite-`0x02` and generic encoding vectors, byte-checks the vendored crypto
-material, and gates real browser/CLI interoperability against a reviewed burnerpad-lite revision. A scheduled
-run tests the same matrix against Lite `main` to expose drift early.
+material, and gates real browser/CLI interoperability against a reviewed burnerpad-lite revision. The
+`lite-main-interop` workflow is configured to test the same matrix against Lite `main` on a schedule to
+expose drift early.

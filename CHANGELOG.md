@@ -20,14 +20,16 @@ derived from the immutable release tag and never hardcoded in source.
 - Frozen exit meanings for input, local I/O, unavailable secrets, passphrase/plaintext failures, definitive
   server rejection, temporary service failures, invalid responses, uncertain mutations, and internal faults.
 - One-attempt mutation transport with explicit create/claim/revoke outcome-unknown reporting.
-- Pull-request and release interoperability gates against a reviewed burnerpad-lite revision, plus a scheduled
-  compatibility run against burnerpad-lite `main`.
+- Pull-request and release interoperability gates against a reviewed burnerpad-lite revision, plus a
+  compatibility workflow scheduled against burnerpad-lite `main`.
 - Tag-derived release identity and a release-rendered checksum-pinned installer, with no version constant or
   post-release version-bump commit.
 - Truthful installation guidance for the release-rendered installer and pre-release source evaluation.
 
 ### Changed
 
+- Limit version-one official binary distribution to immutable GitHub Release assets; external package
+  repositories, registries, and container channels remain deferred until they are owned and verified.
 - Accept only zero installer arguments or the exact `--verify-only` form; typos and extra arguments now fail
   with usage before platform detection, download, or installation.
 - Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a
@@ -54,8 +56,9 @@ derived from the immutable release tag and never hardcoded in source.
 - Every network operation identifies its server before sending and machine responses record that origin.
 - Errors exclude links, IDs, phrases, management tokens, ciphertext, plaintext, raw responses, and paths.
 - The server API client performs no retry, telemetry, update check, or compatibility probe.
-- GitHub Actions and release container images are pinned by immutable digest; unverified package channels are
-  excluded from the first release rather than failing or publishing through an unowned destination.
+- GitHub Actions and release-runner container images are pinned by immutable digest; unverified package
+  channels are excluded from the first release rather than failing or publishing through an unowned
+  destination.
 - Render decrypted plaintext as inert visible escapes in interactive terminals without changing pipe/file
   bytes or decoded JSON values.
 - Acquire the implicit viewer's controlling terminal before a destructive reveal request can consume the secret.

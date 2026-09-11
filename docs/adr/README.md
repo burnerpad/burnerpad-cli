@@ -14,7 +14,7 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0005](0005-single-base64-decode-gate.md) | One audited canonical-base64url decode gate | M1, §11.4 |
 | [0006](0006-suite-selection-by-tty.md) | Default suite by stdout TTY-ness (superseded) | §5.2 |
 | [0007](0007-stream-discipline-and-machine-surface.md) | Stream discipline, `--json`, exit codes as frozen surface (superseded) | §5.1, §8.3, §9 |
-| [0008](0008-no-config-no-state-no-telemetry.md) | No config file, no state, no telemetry, no update check | §4.5, §18, §25 |
+| [0008](0008-no-config-no-state-no-telemetry.md) | No config file, no state, no telemetry, no update check (amended) | §4.5, §18, §25 |
 | [0009](0009-key-material-never-in-argv.md) | Key material never in argv/requests/logs (superseded) | M5, §4.2, §17 |
 | [0010](0010-burning-get-single-shot.md) | The burning GET is single-shot; W0–W6 classification (superseded) | §7.1, §15, §16 |
 | [0011](0011-blob-preservation-and-decrypt.md) | Blob preservation post-burn; `decrypt` recovery command (superseded) | §7.3, §7.4 |
@@ -23,9 +23,9 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0014](0014-http-client-posture.md) | HTTP/1.1 only, keep-alives off, no redirects, no TLS-skip flag (superseded) | §15 |
 | [0015](0015-best-effort-memory-hygiene.md) | Best-effort memory hygiene; `[]byte` secrets; no memguard | M4, §12 |
 | [0016](0016-clipboard-osc52-only.md) | Clipboard via OSC 52 only; `--clip` on reveal with timed clear (superseded) | §8.1 |
-| [0017](0017-reproducible-builds-keyless-signing.md) | Reproducible builds + keyless signing; no minisign | §22–23 |
+| [0017](0017-reproducible-builds-keyless-signing.md) | Reproducible builds + keyless signing; no minisign (partially superseded by 0034 and 0038) | §22–23 |
 | [0018](0018-licensing-and-attribution.md) | Apache-2.0; embedded CC BY 3.0 attribution | §13, §26 |
-| [0019](0019-distribution-and-typosquat-defense.md) | Distribution channels & typosquat defense | §4.1, §24, §27 |
+| [0019](0019-distribution-and-typosquat-defense.md) | Distribution channels & typosquat defense (superseded) | §4.1, §24, §27 |
 | [0020](0020-supplied-phrases-must-be-mintable.md) | Supplied phrases validated on minting, never on opening (superseded) | §6.1, §7.2, §7.5 |
 | [0021](0021-current-server-contract-only.md) | Support only the current burnerpad-lite contract | Current integration boundary |
 | [0022](0022-cross-client-passphrase-creation.md) | Official clients create cross-client passphrase secrets | Current client boundary |
@@ -44,6 +44,7 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0035](0035-retire-unverifiable-clipboard-delivery.md) | Retire unverifiable clipboard delivery before version one | Destination-success boundary |
 | [0036](0036-retire-inert-quiet-option.md) | Retire the inert quiet option before version one | Minimal command surface |
 | [0037](0037-validate-named-credential-files.md) | Validate named credential files on the opened handle | Credential-file trust boundary |
+| [0038](0038-github-releases-only-for-version-one.md) | Ship version one only from GitHub Releases | Distribution trust boundary |
 
 New ADRs: next number, same template (Date/Status/Source, Context, Decision, Consequences,
 Alternatives where meaningful). Superseding an ADR: new record, link both ways, flip the old

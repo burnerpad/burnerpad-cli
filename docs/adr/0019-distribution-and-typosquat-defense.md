@@ -1,6 +1,6 @@
 # ADR-0019: Distribution channels and the typosquat defense
 
-Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0030](0030-first-public-release-is-version-one.md), [ADR-0031](0031-explicit-commands-and-protected-inputs.md) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §4.1, §24, §27
+Date: 2026-08-18 · Status: Superseded by [ADR-0038](0038-github-releases-only-for-version-one.md) · Amended by: [ADR-0030](0030-first-public-release-is-version-one.md), [ADR-0031](0031-explicit-commands-and-protected-inputs.md) · Source: historical pre-release architecture
 
 ## Context
 

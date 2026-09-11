@@ -1,4 +1,4 @@
-# goreleaser v2 — the single release driver (ARCHITECTURE.md §22.4).
+# goreleaser v2 — the single release driver (ADR-0017 and ADR-0038).
 # Flags MUST match the Makefile's canonical block; reproducibility depends on it.
 version: 2
 project_name: burnerpad
@@ -12,7 +12,7 @@ builds:
     ldflags:
       - -s -w -buildid=
       - -X main.version={{ .Version }} -X main.commit={{ .FullCommit }} -X main.date={{ .CommitDate }}
-    # Commit-derived timestamps: a Go binary embeds no clock, packaging must not either (§22.3).
+    # Commit-derived timestamps: a Go binary embeds no clock, packaging must not either (ADR-0017).
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -33,7 +33,7 @@ sboms:
 signs:
   # Keyless (Sigstore): the signing identity is the release workflow itself,
   # bound to the repository and default-branch workflow via OIDC; every
-  # signature lands in Rekor (§23). Signing SHA256SUMS transitively covers each
+  # signature lands in Rekor (ADR-0017). Signing SHA256SUMS transitively covers each
   # GoReleaser artifact listed in it; the immutable release attestation binds
   # the tag, commit, and final asset set.
   - cmd: cosign

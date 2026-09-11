@@ -1,4 +1,4 @@
-# burnerpad-cli — the one canonical build-flags block (ARCHITECTURE.md §22.2).
+# burnerpad-cli — the one canonical build-flags block (ADR-0017).
 # CI and goreleaser must use exactly these flags; drift here breaks reproducibility.
 
 ifeq ($(origin VERSION), undefined)

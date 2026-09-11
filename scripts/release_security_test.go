@@ -398,6 +398,7 @@ func TestReadmeInstallationUsesOnlyReleaseArtifacts(t *testing.T) {
 		"sh burnerpad-install.sh --verify-only",
 		"sh burnerpad-install.sh\n",
 		"The script itself is the trust root",
+		"When a release exists, its Windows archives appear",
 		"there is no Windows installer",
 		"from Git Bash or WSL",
 		"burnerpad.exe` to a directory on `PATH",
@@ -407,9 +408,68 @@ func TestReadmeInstallationUsesOnlyReleaseArtifacts(t *testing.T) {
 			t.Errorf("README installation guidance does not contain %q", want)
 		}
 	}
-	for _, forbidden := range []string{"raw.githubusercontent.com", "| sh", "go install", "@latest"} {
+	for _, forbidden := range []string{
+		"raw.githubusercontent.com",
+		"| sh",
+		"go install",
+		"@latest",
+		"Windows archives are available on the Releases page",
+	} {
 		if strings.Contains(section, forbidden) {
 			t.Errorf("README installation guidance contains unsafe or unavailable path %q", forbidden)
+		}
+	}
+}
+
+func TestPreReleaseDocumentsDoNotClaimExternalCompletion(t *testing.T) {
+	checks := []struct {
+		path      string
+		required  []string
+		forbidden []string
+	}{
+		{
+			path:     "../CHANGELOG.md",
+			required: []string{"## Unreleased\n"},
+		},
+		{
+			path:      "../docs/CURRENT_SERVER_ALIGNMENT.md",
+			required:  []string{"Status: pre-release."},
+			forbidden: []string{"Status: implemented", "local verification complete"},
+		},
+		{
+			path: "../docs/TASKS.md",
+			required: []string{
+				"- [x] Schedule the same Chromium matrix nightly",
+				"- [ ] Observe one successful scheduled Lite-main workflow run after merge.",
+				"- [ ] Dispatch `v1.0.0`",
+			},
+			forbidden: []string{
+				"- [x] Observe one successful scheduled Lite-main workflow run",
+				"- [x] Dispatch `v1.0.0`",
+			},
+		},
+		{
+			path:      "../RELEASING.md",
+			required:  []string{"final release-preparation pull request", "published release archive"},
+			forbidden: []string{"tap-installed"},
+		},
+	}
+
+	for _, check := range checks {
+		raw, err := os.ReadFile(check.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		documentation := string(raw)
+		for _, required := range check.required {
+			if !strings.Contains(documentation, required) {
+				t.Errorf("%s lacks pre-release marker %q", check.path, required)
+			}
+		}
+		for _, forbidden := range check.forbidden {
+			if strings.Contains(documentation, forbidden) {
+				t.Errorf("%s claims uncompleted event %q", check.path, forbidden)
+			}
 		}
 	}
 }
