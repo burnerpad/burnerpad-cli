@@ -1,6 +1,6 @@
 # ADR-0038: Ship version one only from GitHub Releases
 
-Date: 2026-09-11 · Status: Accepted · Supersedes: [ADR-0019](0019-distribution-and-typosquat-defense.md) · Supersedes in part: [ADR-0017](0017-reproducible-builds-keyless-signing.md) (distribution scope) · Amends: [ADR-0008](0008-no-config-no-state-no-telemetry.md) (update discovery) · Source: [CURRENT_SERVER_ALIGNMENT.md](../CURRENT_SERVER_ALIGNMENT.md) §6L, §7
+Date: 2026-09-11 · Status: Accepted · Supersedes: [ADR-0019](0019-distribution-and-typosquat-defense.md) · Supersedes in part: [ADR-0017](0017-reproducible-builds-keyless-signing.md) (distribution scope) · Amends: [ADR-0008](0008-no-config-no-state-no-telemetry.md) (update discovery) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md#release-and-compatibility-gates), [RELEASING.md](../../RELEASING.md)
 
 ## Context
 

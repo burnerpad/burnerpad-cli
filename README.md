@@ -132,11 +132,15 @@ TTL is authoritative and the CLI reports any clamp.
 
 With no supplied phrase, `create` generates exactly seven distinct uniformly sampled words. A
 caller-supplied phrase must contain 7–64 distinct shared-list words. ASCII whitespace and case are
-accepted and canonicalized to lowercase words separated by one space. A piped create with a
-generated phrase requires `--json`, ensuring automation receives a complete handoff receipt. A supplied
-phrase must also be unique to that secret: reusing a suite-`0x02` phrase permits a malicious server to
-substitute another valid secret encrypted under the same phrase. Interactive phrase lines are bounded at
-1,024 bytes; oversized lines and pastes are rejected without being echoed and are wiped after rejection.
+accepted and canonicalized to lowercase words separated by one space. A supplied phrase must also be unique
+to that secret: reusing a suite-`0x02` phrase permits a malicious server to substitute another valid secret
+encrypted under the same phrase. Interactive phrase lines are bounded at 1,024 bytes; oversized lines and
+pastes are rejected without being echoed and are wiped after rejection.
+
+For a successful non-JSON create, stdout contains only the share link. Stderr identifies the server and then
+reports the management token and effective TTL; it also reports a generated phrase. When plaintext is piped
+and the caller supplied the phrase separately, the CLI does not repeat that phrase. Piped plaintext with a
+generated phrase requires `--json` so automation receives the complete handoff receipt.
 
 ### Reveal
 
@@ -208,21 +212,22 @@ Errors are flat and secret-free:
 {"status":"error","code":"claim_outcome_unknown","message":"…","server":"https://burnerpad.io"}
 ```
 
-`retry_after` is the only optional field, and appears only when supplied by the server.
+`retry_after` is the only optional field, and appears only when supplied by the server. Ordinary JSON errors
+use the following closed code vocabulary; no code is emitted for success or signal exits.
 
-| Exit | Meaning |
-|---:|---|
-| `0` | Requested artifact reached its destination |
-| `2` | Invalid command, option, input, or credential source |
-| `3` | Local terminal, file, or output failure |
-| `4` | Secret unavailable |
-| `5` | Passphrase failed or authenticated plaintext was not UTF-8 |
-| `6` | Server definitively rejected the request |
-| `7` | Network, rate-limit, or temporary service failure |
-| `8` | Invalid server response or unsupported ciphertext |
-| `9` | A mutation may have happened, but its outcome is unknown |
-| `10` | Internal failure |
-| `130`, `143` | SIGINT or SIGTERM |
+| Exit | JSON error codes | Meaning |
+|---:|---|---|
+| `0` | — | Requested artifact reached its destination |
+| `2` | `invalid_command`, `invalid_option`, `invalid_input`, `invalid_credential_source` | Invalid command, option, input, or credential source |
+| `3` | `local_io_failed` | Local terminal, file, or output failure |
+| `4` | `secret_unavailable` | Secret unavailable |
+| `5` | `passphrase_failed`, `plaintext_invalid` | Passphrase failed or authenticated plaintext was not UTF-8 |
+| `6` | `server_rejected` | Server definitively rejected the request |
+| `7` | `network_unavailable`, `rate_limited`, `service_unavailable` | Network, rate-limit, or temporary service failure |
+| `8` | `invalid_server_response`, `unsupported_secret` | Invalid server response or unsupported ciphertext |
+| `9` | `create_outcome_unknown`, `claim_outcome_unknown`, `revoke_outcome_unknown` | A mutation may have happened, but its outcome is unknown |
+| `10` | `internal` | Internal failure |
+| `130`, `143` | — | SIGINT or SIGTERM |
 
 The first SIGINT or SIGTERM cancels outstanding work but does not abandon it. Burnerpad waits for a mutation
 request to be classified and for required handoff and cleanup attempts to finish. If cancellation leaves an

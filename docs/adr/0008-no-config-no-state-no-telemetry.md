@@ -1,6 +1,6 @@
 # ADR-0008: No config file, no persistent state, no telemetry, no update check
 
-Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0038](0038-github-releases-only-for-version-one.md) (update channel) · Source: historical pre-release architecture
+Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0038](0038-github-releases-only-for-version-one.md) (update channel), [ADR-0040](0040-egress-requirement-and-verification.md) (verification evidence) · Source: historical pre-release architecture
 
 ## Context
 

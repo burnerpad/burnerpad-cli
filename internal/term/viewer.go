@@ -23,9 +23,9 @@ const (
 
 var errViewerFallback = errors.New("viewer requires scrollback fallback")
 
-// ShowViewerContext displays a terminal-safe rendition of plaintext per §8.1
-// and supports cancellation while the alternate screen waits for a key. Ctrl+C
-// is an interrupt, EOF is a clean close, and other input errors are preserved.
+// ShowViewerContext displays a terminal-safe rendition of plaintext and
+// supports cancellation while the alternate screen waits for a key. Ctrl+C is
+// an interrupt, EOF is a clean close, and other input errors are preserved.
 func ShowViewerContext(ctx context.Context, t *TTY, plaintext []byte, o ViewerOpts) error {
 	width, height := t.size()
 	if !o.NoAlt && !viewerFrameFits(width, height, viewerHeader(plaintext)) {
@@ -70,7 +70,7 @@ func showViewerContext(
 	}
 
 	if o.NoAlt {
-		// §8.1: the honest path when no alternate screen exists.
+		// This is the honest path when no alternate screen exists.
 		if _, err := io.WriteString(w, "note: plaintext is entering terminal scrollback; controls are escaped\n"); err != nil {
 			return err
 		}
@@ -391,7 +391,7 @@ func writeViewerBody(w io.Writer, b []byte, newline string) error {
 	return nil
 }
 
-// groupDigits renders n with thousands separators (§8.1: "3,214 bytes").
+// groupDigits renders n with thousands separators, as in "3,214 bytes".
 func groupDigits(n int) string {
 	s := strconv.Itoa(n)
 	if len(s) <= 3 {

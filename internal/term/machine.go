@@ -20,9 +20,9 @@ type machineOutput struct {
 	phrase    []byte   // canonical phrase bytes when done; caller wipes
 }
 
-// machine is the pure autocomplete state machine of §7.2 (as amended by
-// A9–A12) — no I/O, no terminal knowledge. State is exactly the committed
-// words, current buffer, submission gate, and completion state.
+// machine is the pure autocomplete state machine: no I/O and no terminal
+// knowledge. State is exactly the committed words, current buffer, submission
+// gate, and completion state.
 type machine struct {
 	words     []string
 	minWords  int
@@ -32,8 +32,8 @@ type machine struct {
 }
 
 // newMachine returns a machine over the embedded word list. min is the
-// committed-word gate for submission (§7.2: ≥ 7 for burnerpad phrases);
-// min ≤ 0 selects wordlist.PhraseWords.
+// committed-word gate for submission; min <= 0 selects
+// wordlist.PhraseWords.
 func newMachine(min int) *machine {
 	if min <= 0 {
 		min = wordlist.PhraseWords
@@ -79,9 +79,8 @@ func (m *machine) isCommitted(w string) bool {
 	return false
 }
 
-// candCount is |{list words with prefix p}| minus already-committed ones
-// (§7.2 "Candidates = list words with prefix buf, excluding already-committed
-// words").
+// candCount is the number of list words with prefix p, excluding words that
+// are already committed.
 func (m *machine) candCount(p string) int {
 	lo, hi := prefixRange(m.words, p)
 	return (hi - lo) - m.committedWithPrefix(p)
@@ -132,9 +131,8 @@ func (m *machine) ghost() string {
 
 // --- status strings ------------------------------------------------------
 //
-// Count-vs-example thresholds are pinned by the §10(c) transcript
-// ("126 words match", "10 match: academy accountant acetone …"); the
-// toggle-hint rule by the §7.2 Ctrl+O row.
+// Count-vs-example thresholds are pinned by transcript tests ("126 words
+// match", "10 match: academy accountant acetone …").
 
 const (
 	submitHint            = "Enter submits — keep typing if the phrase was longer"
@@ -177,8 +175,8 @@ func (m *machine) needMoreStatus() string {
 		len(m.committed), m.minWords, m.minWords)
 }
 
-// commit appends w, clears buf, and returns the post-commit status
-// (committed-count form, A11).
+// commit appends w, clears buf, and returns a status using the committed-word
+// count.
 func (m *machine) commit(w string) (bool, string) {
 	if len(m.committed) >= wordlist.MaxPhraseWords {
 		return true, interactiveWordsMessage(interactiveWordsTooMany)
@@ -247,7 +245,7 @@ func (m *machine) onRune(r rune) (bool, string) {
 	if r >= 'A' && r <= 'Z' {
 		r += 'a' - 'A' // ASCII uppercase is lowercased silently
 	}
-	// A9: accept any printable rune iff ≥ 1 candidate would remain. The list
+	// Accept any printable rune iff at least one candidate would remain. The list
 	// charset is [a-z-], so digits/foreign punctuation still always reject —
 	// and '-' is typeable exactly where the list needs it (yo-yo).
 	try := string(m.buf) + string(r)
@@ -282,17 +280,16 @@ func (m *machine) onTab() (bool, string) {
 	if m.candCount(p) == 1 {
 		return m.commit(m.firstCandidates(p, 1)[0])
 	}
-	// Ambiguous: A12's "extends buf to the longest common prefix". The LCP is
+	// For an ambiguous buffer, extend to the longest common prefix. The LCP is
 	// a prefix of every candidate, so this branch never changes the candidate
 	// count — it cannot make the buffer unique behind the user's back.
 	m.buf = []rune(m.lcpOfCandidates(p))
 	return false, m.matchStatus()
 }
 
-// onEnter implements A12: Enter with a non-empty buf COMMITS ONLY; Enter
-// with an empty buf and committed ≥ min SUBMITS. Commit-and-submit never
-// share a keystroke — the gesture that gates the claim request is always
-// deliberate.
+// onEnter commits only when the buffer is non-empty and submits only when the
+// buffer is empty with at least min committed words. Commit and submit never
+// share a keystroke, so the gesture that gates the claim request is deliberate.
 func (m *machine) onEnter() (bool, string) {
 	if len(m.buf) > 0 {
 		p := string(m.buf)
@@ -335,9 +332,9 @@ func (m *machine) onCtrlO() (bool, string) {
 	return true, "every passphrase word must be on the Burnerpad word list"
 }
 
-// onPaste implements the atomic whole-phrase rule (§7.2 paste row, B24):
-// ASCII-lowercase, split on ASCII whitespace runs, every token ∈ list ∧ distinct ∧ not
-// already committed; all-or-nothing; a partial buf is left untouched; paste
+// onPaste applies the atomic whole-phrase rule: ASCII-lowercase, split on
+// ASCII whitespace runs, every token in the list, distinct, and not already
+// committed. It is all-or-nothing, leaves a partial buffer untouched, and
 // never submits.
 func (m *machine) onPaste(text []byte) (bool, string) {
 	tokens, issue := parseInteractiveWords(text, m.committed)
@@ -347,7 +344,7 @@ func (m *machine) onPaste(text []byte) (bool, string) {
 	if len(tokens) == 0 {
 		return false, ""
 	}
-	keep := m.buf // B24: paste leaves a partial buf untouched (commit clears it)
+	keep := m.buf // paste leaves a partial buffer untouched; commit clears it
 	var status string
 	for _, tok := range tokens {
 		_, status = m.commit(tok)

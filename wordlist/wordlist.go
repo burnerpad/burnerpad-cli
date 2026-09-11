@@ -21,8 +21,8 @@ const (
 	Count       = 1296 // 6^4; ~10.34 bits/word
 	PhraseWords = 7    // 7·log2(1296) ≈ 72.4 bits
 
-	// FileSHA256 pins the embedded LF-separated list; surfaced by
-	// `burnerpad version` (§25) and independently asserted by
+	// FileSHA256 pins the embedded LF-separated list; it is surfaced by
+	// `burnerpad version` and independently asserted by
 	// TestWordlistInvariants against the embedded bytes.
 	FileSHA256 = "7aa57a4d3ecf6581729992bad9575bacdebf7c28378af2aec6a50f11aec326f5"
 )

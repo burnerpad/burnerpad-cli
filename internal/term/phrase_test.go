@@ -123,9 +123,9 @@ func TestReadEventPasteSurvivesPause(t *testing.T) {
 	}
 }
 
-// ReadPhrase over a non-terminal falls back to plain line mode (§7.6: the
-// raw-mode probe failing IS the conhost/--plain trigger) and still produces
-// the canonical phrase.
+// ReadPhrase over a non-terminal falls back to plain line mode, as it does
+// when the raw-mode probe fails on legacy conhost, and still produces the
+// canonical phrase.
 func TestReadPhraseFallsBackToPlain(t *testing.T) {
 	tty, inW, outR := pipeTTY(t)
 	go func() {

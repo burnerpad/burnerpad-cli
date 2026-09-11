@@ -7,7 +7,7 @@
 // kdfIter test seam, so every assertion exercises the shipped code path,
 // not a test-local reimplementation.
 //
-// Vendored-file discipline mirrors testdata/v1.json (§14.1): sha256-pinned,
+// Vendored-file discipline mirrors testdata/v1.json: SHA-256-pinned,
 // strictly decoded (DisallowUnknownFields), and every selection/result count
 // is pinned so an upstream re-vendor can never silently shrink coverage or
 // smuggle in a case class this file has no policy for.

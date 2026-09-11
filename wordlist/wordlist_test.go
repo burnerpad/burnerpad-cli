@@ -1,5 +1,5 @@
-// The §13 invariants gates + phrase generation tests. White-box (same
-// package): the seam tests swap the unexported randRead.
+// Wordlist invariant and phrase-generation tests. White-box (same package):
+// the seam tests swap the unexported randRead.
 package wordlist
 
 import (
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// Pinned in §13: the embedded file (LF-separated, one trailing LF)…
+	// The embedded file (LF-separated, one trailing LF) is pinned exactly…
 	fileSHA256 = "7aa57a4d3ecf6581729992bad9575bacdebf7c28378af2aec6a50f11aec326f5"
 	// …and the canonical space-joined form both repos can assert.
 	joinedSHA256 = "dc3267b1a27f952a27f4a3f70dcb097ff7a3c84a229ac2f88b055a2a07923134"
@@ -32,7 +32,7 @@ func TestWordlistInvariants(t *testing.T) {
 		t.Fatalf("count = %d, want %d", len(w), Count)
 	}
 
-	// Strict order ⇒ sorted AND distinct in one check (§13).
+	// Strict order implies sorted and distinct in one check.
 	for i := 1; i < len(w); i++ {
 		if w[i-1] >= w[i] {
 			t.Fatalf("not strictly sorted at %d: %q >= %q", i, w[i-1], w[i])
@@ -61,7 +61,7 @@ func TestWordlistInvariants(t *testing.T) {
 		prefixes[p] = word
 	}
 
-	// Prefix-freeness (review amendment B23): no word is a prefix of another.
+	// No word may be a prefix of another.
 	// Space/Enter's "candidates == 1" commit rule depends on this; it follows
 	// from unique-at-3 only for words ≥ 3 chars, so it is asserted directly —
 	// a future short-word edit must fail here, not silently break commits.
@@ -79,8 +79,8 @@ func TestWordlistInvariants(t *testing.T) {
 	}
 }
 
-// TestWordlistEditDistance verifies the spoken-channel property §13 pins:
-// pairwise plain Levenshtein distance ≥ 3, and the minimum is exactly 3.
+// TestWordlistEditDistance verifies the spoken-channel property: pairwise
+// plain Levenshtein distance is at least 3, and the minimum is exactly 3.
 // O(n²); skipped under -short.
 func TestWordlistEditDistance(t *testing.T) {
 	if testing.Short() {
@@ -127,8 +127,8 @@ func TestWordlistEditDistance(t *testing.T) {
 	}
 }
 
-// scriptRand swaps the seam for a scripted stream — same pattern and rules as
-// envelope's fixRand (§14.1): draw order and exact consumption are asserted.
+// scriptRand swaps the seam for a scripted stream using the same rules as
+// envelope's fixed-randomness tests: draw order and exact consumption matter.
 func scriptRand(t *testing.T, script ...[]byte) {
 	t.Helper()
 	stream := bytes.Join(script, nil)
@@ -149,9 +149,9 @@ func scriptRand(t *testing.T, script ...[]byte) {
 	})
 }
 
-// TestPhraseSeamRejectionAndCollision drives both loops deterministically
-// (§13): a rejection-sampled redraw (v ≥ 64800) and a distinctness redraw
-// (duplicate index), including the exact acceptance boundary.
+// TestPhraseSeamRejectionAndCollision drives both loops deterministically: a
+// rejection-sampled redraw (v >= 64800) and a distinctness redraw (duplicate
+// index), including the exact acceptance boundary.
 func TestPhraseSeamRejectionAndCollision(t *testing.T) {
 	w := Words()
 
@@ -183,9 +183,9 @@ func TestPhraseSeamRejectionAndCollision(t *testing.T) {
 	})
 }
 
-// TestPhraseStatistical is the §13 smoke test: 10k phrases — every word
-// on-list, n distinct words each, canonical single-space join, no byte
-// outside [a-z -].
+// TestPhraseStatistical samples 10,000 phrases: every word is on-list, each
+// phrase has n distinct words and a canonical single-space join, and no byte
+// falls outside [a-z -].
 func TestPhraseStatistical(t *testing.T) {
 	w := Words()
 	onList := make(map[string]bool, Count)

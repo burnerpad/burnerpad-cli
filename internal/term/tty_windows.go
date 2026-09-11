@@ -8,16 +8,16 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// platformState remembers the console output mode enableVT changed, so
-// EmergencyRestore can put it back from the signal path (A8).
+// platformState remembers the console output mode enableVT changed so
+// EmergencyRestore can put it back from the signal path.
 type platformState struct {
 	outHandle windows.Handle
 	outMode   uint32
 	saved     bool
 }
 
-// openTTY opens the console devices directly (§5.1: CONIN$/CONOUT$), so
-// prompts survive stdio redirection exactly as /dev/tty does on Unix.
+// openTTY opens CONIN$/CONOUT$ directly so prompts survive stdio redirection
+// exactly as /dev/tty does on Unix.
 func openTTY() (*TTY, error) {
 	in, err := os.OpenFile("CONIN$", os.O_RDWR, 0)
 	if err != nil {
@@ -28,15 +28,15 @@ func openTTY() (*TTY, error) {
 		in.Close()
 		return nil, err
 	}
-	// t.winch never fires: Windows has no SIGWINCH (§21); resize repaint is
+	// t.winch never fires: Windows has no SIGWINCH; resize repaint is
 	// a Unix-only nicety.
 	return newTTY(in, out), nil
 }
 
-// enableVT turns on ANSI processing for the console (§21). x/term's MakeRaw
+// enableVT turns on ANSI processing for the console. x/term's MakeRaw
 // already sets ENABLE_VIRTUAL_TERMINAL_INPUT on the input handle; output
 // needs ENABLE_VIRTUAL_TERMINAL_PROCESSING, which legacy conhost refuses —
-// that error is the documented --plain fallback trigger (§7.6).
+// that error triggers the documented --plain fallback.
 func (t *TTY) enableVT() (restore func(), err error) {
 	h := windows.Handle(t.out.Fd())
 	var mode uint32

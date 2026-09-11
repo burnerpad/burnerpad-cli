@@ -30,7 +30,8 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 7. Enforce the advertised conformance-vector pin.
 - [x] 8. Repair deterministic release reproduction.
 - [x] 9. Fix remaining completeness and UX defects.
-- [ ] 10. Remove dead and duplicated surface area.
+- [x] 10. Remove dead and duplicated surface area.
+- [ ] 11. Close the remaining pre-release acceptance-evidence gaps.
 
 ## Critical and high findings
 
@@ -174,7 +175,7 @@ Remediation applied 2026-09-11:
 
 After every POST, `internal/api/api.go:224-243` treats most unexpected sub-500 responses as protocol errors rather than outcome unknown. Examples include `201`, `204`, `302`, and operation-inapplicable `400`/`413` statuses.
 
-The mutation may already have occurred, but exit 8 says only “invalid server response”; the documented contract reserves outcome unknown for incomplete or invalid post-send mutation results (`docs/CURRENT_SERVER_ALIGNMENT.md:287-291`). The existing redirect test pins the incorrect classification.
+The mutation may already have occurred, but exit 8 says only “invalid server response”; the documented [HTTP contract](docs/ARCHITECTURE.md#http-contract) reserves outcome unknown for incomplete or invalid post-send mutation results. The existing redirect test pins the incorrect classification.
 
 Remediation applied 2026-09-10: mutation status classification is now
 operation-specific and conservative. Only create `400`/`413`, claim/revoke
@@ -297,7 +298,34 @@ Finding 10 task ledger:
 - [x] 10.4 Replace duplicated completion vocabularies with one command schema (completed with 9.8).
 - [x] 10.5 Share reveal/decrypt authentication, retry, validation, and delivery flow.
 - [x] 10.6 Remove test-only exported terminal interfaces and wrappers.
-- [ ] 10.7 Remove stale completed planning documents and the obsolete prototype.
+- [x] 10.7 Remove stale completed planning documents and the obsolete prototype.
+
+Remediation completed 2026-09-11: all seven minimality tasks are complete.
+Dead implementations, duplicate command vocabularies, and test-only terminal
+APIs are gone. Five stale planning/glossary/prototype artifacts were deleted
+only after their live machine, handoff, test-boundary, dependency, and release
+contracts moved into current documents and executable tests. The remaining
+machine-error vocabulary is now closed by a production registry, and
+unregistered or code/exit-mismatched errors fail closed as `internal`.
+
+## Remaining pre-release acceptance evidence
+
+Retiring the old alignment checklist exposed six promises whose adjacent unit
+coverage was not the executable evidence the checklist claimed. The first is
+also dead public behavior; the others appear correctly implemented but remain
+unproven at their promised failure or real-client boundaries. The two GitHub
+release gates remain external and deliberately unchecked.
+
+Finding 11 task ledger:
+
+- [ ] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
+- [ ] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
+- [ ] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
+- [ ] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
+- [ ] 11.5 Prove real Lite expiry end to end through the CLI.
+- [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
+- [ ] 11.7 Observe a successful scheduled Lite-main run after the workflow reaches `main` (GitHub-only).
+- [ ] 11.8 Verify every required check on the release commit and dispatch `v1.0.0` only after all prior gates pass (GitHub-only).
 
 ## What is strong
 

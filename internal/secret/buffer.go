@@ -1,7 +1,6 @@
-// Package secret: best-effort secret hygiene for a ~200 ms process
-// (ARCHITECTURE.md §12). Honest scope: this narrows exposure windows; it
-// cannot make Go leak-proof (see the residual-copy table in SECURITY.md).
-// Do not oversell it in docs.
+// Package secret provides best-effort secret hygiene for a short-lived
+// process. This narrows exposure windows but cannot make Go leak-proof; see
+// the residual-copy table in SECURITY.md.
 package secret
 
 import "runtime"
@@ -17,7 +16,7 @@ func Wipe(b []byte) {
 }
 
 // Buffer wraps a secret byte slice so that (a) accidental formatting leaks
-// nothing — Stringer/GoStringer return "[redacted]" (§12) — and (b) the
+// nothing — Stringer/GoStringer return "[redacted]" — and (b) the
 // owner has one obvious wipe affordance. It deliberately has no Copy: secrets
 // are moved, not multiplied.
 type Buffer struct {
@@ -25,7 +24,7 @@ type Buffer struct {
 }
 
 // New takes OWNERSHIP of b: the caller must not retain or reuse the slice.
-// Best-effort mlock is applied (failures silently ignored, §12).
+// Best-effort mlock is applied; failures are silently ignored.
 func New(b []byte) *Buffer {
 	Mlock(b)
 	return &Buffer{b: b}

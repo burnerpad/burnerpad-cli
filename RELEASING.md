@@ -50,6 +50,15 @@ attached and verified, and the draft is published only at the end. GitHub then
 locks the published release, its assets, and its tag and creates the release
 attestation.
 
+## Pre-v1 external gates
+
+These gates remain unchecked until their evidence exists in GitHub. Local checks or manually triggered
+substitutes do not satisfy them.
+
+- [ ] Observe one successful scheduled Lite-main workflow run after the scheduling workflow reaches `main`.
+- [ ] Dispatch `v1.0.0` only after immutable releases are enabled and every repository-required check is
+  verified green on the release commit.
+
 ## Cut a release
 
 1. In the final release-preparation pull request, promote the relevant
@@ -103,8 +112,9 @@ still prevents reuse of its tag name.
 2. ⚙ `spec-drift` green as a direct release dependency — vendored SPEC/vectors/wordlist match the pinned
    upstream (`.github/workflows/spec-drift.yml`).
 3. ⚙ Pinned real-Lite interoperability green in all three official-client directions.
-4. ⚙ **No-phone-home invariant**: zero egress to any host other than the selected API
-   host across the matrix.
+4. **Manual—required before release:** demonstrate the **no-phone-home invariant**—zero application egress
+   to any host other than the selected API host across the matrix—and record the evidence. The repository
+   does not yet enforce this gate in CI.
 5. ⚙ Size gate ≤ 9 MiB × 6 targets; import allowlist green
    (`scripts/check-size.sh`, `scripts/check-deps.sh`).
 6. ⚙ `govulncheck` clean; toolchain at the latest patch of its minor.
@@ -115,3 +125,5 @@ still prevents reuse of its tag name.
 9. CHANGELOG entry present; tag-derived `burnerpad version` output correct on a
    binary extracted from a published release archive, not a dev build.
 10. NOTICE present in: archive, deb/rpm/apk, `burnerpad licenses` output.
+11. README, man page, executable help, completions, changelog, architecture, release guide, and runtime
+    behavior agree.

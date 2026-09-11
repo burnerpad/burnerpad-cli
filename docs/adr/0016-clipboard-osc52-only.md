@@ -30,5 +30,5 @@ composition; the man page still recommends the alternate-screen viewer as defaul
 ## Consequences
 
 - No per-OS clipboard binaries, ever (also excluded by ADR-0002).
-- OSC 52 base64 payload size limits across terminals need a documented bound for large plaintexts
-  (design-review follow-up).
+- The unresolved OSC 52 payload-limit question was eliminated by
+  [ADR-0035](0035-retire-unverifiable-clipboard-delivery.md), which removed the unverifiable destination.

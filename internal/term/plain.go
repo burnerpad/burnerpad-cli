@@ -55,8 +55,8 @@ func readPhrasePlainLines(w io.Writer, min int, nextLine func() ([]byte, error))
 	}
 }
 
-// plainLabel mirrors promptLabel without the glyphs: spoken-friendly,
-// committed-count after the gate (A11).
+// plainLabel mirrors promptLabel without the glyphs: spoken-friendly, with a
+// committed-word count after the submission gate.
 func plainLabel(n, min int) string {
 	if n < min {
 		return fmt.Sprintf("word %d/%d: ", n+1, min)
@@ -65,8 +65,8 @@ func plainLabel(n, min int) string {
 }
 
 // readLine reads one line as fresh bytes with the terminator removed —
-// exactly one trailing \n and one preceding \r (§11.6 framing). io.EOF with
-// a non-empty final line still yields the line.
+// exactly one trailing \n and one preceding \r. io.EOF with a non-empty final
+// line still yields the line.
 func readLine(br *bufio.Reader, limit int) ([]byte, error) {
 	line := make([]byte, 0, limit+1)
 	overflow := false

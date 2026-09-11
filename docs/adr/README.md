@@ -1,14 +1,14 @@
 # Architecture Decision Records
 
-ADRs 0001–0020 were extracted from the unreleased historical
-[ARCHITECTURE.md](../ARCHITECTURE.md). ADRs 0021 onward record the current-server redesign, with
-[CURRENT_SERVER_ALIGNMENT.md](../CURRENT_SERVER_ALIGNMENT.md) specifying its exact approved behavior. Each
-record preserves why a decision stands and marks displaced pre-release decisions as superseded.
+ADRs 0001–0020 were extracted from the unreleased historical architecture. ADRs 0021 onward record the
+current-server redesign. [ARCHITECTURE.md](../ARCHITECTURE.md) is the current version-one specification;
+the records here preserve why its decisions stand and mark displaced pre-release decisions as superseded or
+amended.
 
 | # | Decision | Anchors |
 |---|---|---|
 | [0001](0001-go-as-implementation-language.md) | Go as the implementation language (floor go1.25) | §3 |
-| [0002](0002-one-dependency-freeze.md) | One-dependency freeze; hand-rolled terminal layer | M6, §19 |
+| [0002](0002-one-dependency-freeze.md) | One-dependency freeze; hand-rolled terminal layer (amended) | M6, §19 |
 | [0003](0003-conformance-as-release-gate.md) | Envelope-spec conformance as merge + release gate (superseded) | M2, §14 |
 | [0004](0004-extractable-stdlib-only-packages.md) | Public, extractable, stdlib-only `envelope/` + `wordlist/` | §11, §13, §19 |
 | [0005](0005-single-base64-decode-gate.md) | One audited canonical-base64url decode gate | M1, §11.4 |
@@ -45,6 +45,8 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0036](0036-retire-inert-quiet-option.md) | Retire the inert quiet option before version one | Minimal command surface |
 | [0037](0037-validate-named-credential-files.md) | Validate named credential files on the opened handle | Credential-file trust boundary |
 | [0038](0038-github-releases-only-for-version-one.md) | Ship version one only from GitHub Releases | Distribution trust boundary |
+| [0039](0039-two-direct-go-team-modules.md) | Freeze two direct Go-team modules and exact public-package boundaries | Dependency and package boundary |
+| [0040](0040-egress-requirement-and-verification.md) | Keep the egress requirement distinct from its missing executable proof | Network-privacy evidence boundary |
 
 New ADRs: next number, same template (Date/Status/Source, Context, Decision, Consequences,
 Alternatives where meaningful). Superseding an ADR: new record, link both ways, flip the old

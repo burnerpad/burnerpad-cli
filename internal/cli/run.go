@@ -45,6 +45,30 @@ type commandError struct {
 func (e commandError) Error() string { return e.message }
 func (e commandError) Unwrap() error { return e.cause }
 
+// machineErrorExits is the closed machine-error vocabulary. report validates
+// every ordinary command error against this registry so a new or mismatched
+// code cannot silently expand the version-one interface.
+var machineErrorExits = map[string]int{
+	"invalid_command":           2,
+	"invalid_option":            2,
+	"invalid_input":             2,
+	"invalid_credential_source": 2,
+	"local_io_failed":           3,
+	"secret_unavailable":        4,
+	"passphrase_failed":         5,
+	"plaintext_invalid":         5,
+	"server_rejected":           6,
+	"network_unavailable":       7,
+	"rate_limited":              7,
+	"service_unavailable":       7,
+	"invalid_server_response":   8,
+	"unsupported_secret":        8,
+	"create_outcome_unknown":    9,
+	"claim_outcome_unknown":     9,
+	"revoke_outcome_unknown":    9,
+	"internal":                  10,
+}
+
 func usage(code, message string) error {
 	return commandError{exit: 2, code: code, message: message}
 }
@@ -202,6 +226,9 @@ func (a *application) report(err error) int {
 	}
 	if ce.exit >= 128 {
 		return ce.exit
+	}
+	if expected, ok := machineErrorExits[ce.code]; !ok || expected != ce.exit {
+		ce = commandError{exit: 10, code: "internal", message: "unexpected internal failure"}
 	}
 	if a.cfg.json {
 		body := errorResult{Status: "error", Code: ce.code, Message: ce.message, Server: ce.server, RetryAfter: ce.retryAfter}

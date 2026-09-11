@@ -1,6 +1,6 @@
 # ADR-0004: `envelope/` and `wordlist/` as public, extractable, stdlib-only packages
 
-Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0024](0024-supported-crypto-conformance.md) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §11, §13, §19
+Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0024](0024-supported-crypto-conformance.md), [ADR-0039](0039-two-direct-go-team-modules.md) (import boundaries) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §11, §13, §19
 
 ## Context
 

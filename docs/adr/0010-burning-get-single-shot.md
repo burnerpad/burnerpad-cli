@@ -34,5 +34,6 @@ auto-retries a GET when a *reused* idle connection dies, and redirects/H2 multip
 - The exactly-once hazard is surfaced in fixed, golden-tested language — the CLI's contribution is
   refusing to pretend a lost response is recoverable.
 - HTTP client config is boring and auditable; keep-alive stays off on the take path forever.
-- Intermediary statuses (reverse proxy / CDN 5xx after dispatch) need explicit window
-  classification — tracked as a design-review amendment (see docs/design-review).
+- Intermediary-status classification was resolved for the replacement POST mutations by
+  [ADR-0023](0023-single-attempt-network-operations.md) and the current
+  [HTTP contract](../ARCHITECTURE.md#http-contract).

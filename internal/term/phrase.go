@@ -16,24 +16,24 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// ErrInterrupted is returned by the interactive prompts on Ctrl+C (and on
-// EOF at a prompt): the caller maps it to the §9 signal exit.
+// ErrInterrupted is returned by interactive prompts on Ctrl+C and on EOF at
+// a prompt; the caller maps it to the appropriate signal result.
 var (
 	ErrInterrupted  = errors.New("interrupted")
 	ErrInputTooLong = errors.New("input too long")
 )
 
-// escTimeout is the inter-byte deadline for ESC-initiated sequences (§7.2):
-// past it a pending sequence is flushed as ignored, so a human's lone ESC is
-// not glued to their next keystroke. Var only for tests.
+// escTimeout is the inter-byte deadline for ESC-initiated sequences. Past it,
+// a pending sequence is flushed as ignored so a human's lone ESC is not glued
+// to the next keystroke. It is a variable only for tests.
 var escTimeout = 50 * time.Millisecond
 
-// narrowWidth is the §7.2 floor below which the ghost-text prompt falls back
-// to plain line mode.
+// narrowWidth is the floor below which the ghost-text prompt falls back to
+// plain line mode.
 const narrowWidth = 20
 
-// TTY is the controlling terminal (/dev/tty; CONIN$/CONOUT$ on Windows),
-// deliberately separate from stdio so prompts survive redirection (§5.1).
+// TTY is the controlling terminal (/dev/tty; CONIN$/CONOUT$ on Windows), kept
+// separate from stdio so prompts survive redirection.
 type TTY struct {
 	in, out *os.File
 
@@ -74,7 +74,7 @@ func newTTY(in, out *os.File) *TTY {
 }
 
 // makeRaw puts the terminal in raw mode, enables VT processing where the
-// platform needs it (§21), and turns bracketed paste on (§7.2 paste row).
+// platform needs it, and turns bracketed paste on.
 // restore reverses all of it and is idempotent — every exit path, including
 // the signal handler, may call it.
 func (t *TTY) makeRaw() (restore func(), err error) {
@@ -177,9 +177,9 @@ func (t *TTY) leaveAlternateScreen() {
 	}
 }
 
-// EmergencyRestore is the signal-path cleanup (A8): cooked mode, bracketed
-// paste off, alternate screen off. Safe to call at any time, from the signal
-// goroutine, whether or not raw mode or the viewer is active.
+// EmergencyRestore is the signal-path cleanup: cooked mode, bracketed paste
+// off, and alternate screen off. It is safe to call at any time from the
+// signal goroutine, whether or not raw mode or the viewer is active.
 func (t *TTY) EmergencyRestore() {
 	t.mu.Lock()
 	raw := t.raw
@@ -255,8 +255,8 @@ func (t *TTY) Close() {
 }
 
 // startPump starts the two-goroutine reader: one blocks on the tty read, the
-// other decodes — which is where the §7.2 50 ms inter-byte timeout for
-// ESC-initiated sequences lives (the decoder itself is pure).
+// other decodes. This is where the inter-byte timeout for ESC-initiated
+// sequences lives; the decoder itself is pure.
 func (t *TTY) startPump() {
 	t.pumpOnce.Do(func() {
 		raw := make(chan []byte, 8)
@@ -305,7 +305,7 @@ func (t *TTY) startPump() {
 					emit(d.feed(b))
 				}
 				// The raw tty bytes may spell a phrase or paste; every
-				// consumer got copies, so the chunk itself is wiped (§12).
+				// consumer got copies, so the chunk itself is wiped.
 				secret.Wipe(chunk)
 			}
 		}()
@@ -314,14 +314,14 @@ func (t *TTY) startPump() {
 
 // PhraseOpts configures ReadPhraseContext.
 type PhraseOpts struct {
-	Plain   bool // §7.6 line mode: no raw mode, no ANSI
+	Plain   bool // line mode: no raw mode, no ANSI
 	NoColor bool // strip SGR (interaction intact)
 }
 
 // ReadPhraseContext runs list-locked autocomplete with cancellation for every
 // terminal wait, including the accessible cooked-line fallback. It returns
 // canonical phrase bytes; ErrInterrupted is returned on Ctrl+C or EOF.
-// Raw-mode failure (legacy conhost, no VT) falls back to plain per §7.6.
+// Raw-mode failure (legacy conhost, no VT) falls back to plain mode.
 func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffer, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -379,8 +379,7 @@ func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffe
 }
 
 // readEventOrResizeContext blocks for the next event, repainting on every
-// resize tick in between (§7.2: "SIGWINCH triggers one repaint at the new
-// width").
+// resize tick in between so SIGWINCH repaints at the new width.
 func (t *TTY) readEventOrResizeContext(ctx context.Context, repaint func()) (event, error) {
 	if err := ctx.Err(); err != nil {
 		return event{}, err
@@ -430,7 +429,7 @@ func paintPrompt(t *TTY, v promptView) {
 		if v.noColor {
 			sb.WriteString(gh)
 		} else {
-			sb.WriteString("\x1b[2m") // ghost renders dim (SGR 2, §7.2)
+			sb.WriteString("\x1b[2m") // ghost renders dim with SGR 2
 			sb.WriteString(gh)
 			sb.WriteString("\x1b[22m")
 		}
@@ -446,9 +445,9 @@ func paintPrompt(t *TTY, v promptView) {
 	io.WriteString(t.out, sb.String())
 }
 
-// finishPromptLine leaves the committed phrase visible (§7.6: phrase entry
-// echoes the words), clears the status row, and parks the cursor at column 0
-// of the next line for whatever the caller prints next.
+// finishPromptLine leaves the echoed committed phrase visible, clears the
+// status row, and parks the cursor at column 0 of the next line for whatever
+// the caller prints next.
 func finishPromptLine(t *TTY) {
 	io.WriteString(t.out, "\n\r\x1b[K")
 }

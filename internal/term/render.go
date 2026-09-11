@@ -7,9 +7,9 @@ import (
 
 const elisionMark = '…'
 
-// promptLabel is the §7.2 counter as amended by A11: the ordinal of the word
-// being entered while below the gate (`word 3/7 ▸ `), then the COMMITTED
-// count (`7 words ▸ ` — never `8 words ▸`).
+// promptLabel shows the ordinal of the word being entered below the gate
+// (`word 3/7 ▸ `), then the committed count (`7 words ▸ `, never
+// `8 words ▸`).
 func promptLabel(n, min int) string {
 	if n < min {
 		return fmt.Sprintf("word %d/%d ▸ ", n+1, min)
@@ -19,7 +19,7 @@ func promptLabel(n, min int) string {
 
 // renderLine builds the line as (everything before the cursor, ghost shown
 // after the cursor) so the painter can style the ghost dim and place the
-// cursor between them. A10's three-stage degradation:
+// cursor between them. Narrow widths degrade in three stages:
 //  1. elide the committed head as `…` (the words remain in the machine; the
 //     counter is authoritative);
 //  2. drop ghost columns from the end (the ghost is a hint, buf is the
@@ -28,7 +28,7 @@ func promptLabel(n, min int) string {
 func renderLine(label string, committed []string, buf, ghost string, width int) (string, string) {
 	limit := width - 1 // reserved cursor cell
 	if limit < 1 {
-		limit = 1 // widths < 20 are --plain territory (§7.2); stay safe anyway
+		limit = 1 // widths below 20 use --plain; stay safe anyway
 	}
 	p := []rune(label)
 	b := []rune(buf)

@@ -26,8 +26,8 @@ func runPlain(t *testing.T, input string, min int) (string, string, error) {
 const plainIntro = "Passphrase — one word per line, or the whole phrase on one line.\n" +
 	"An empty line submits once at least 7 words are entered; every word must be on the list.\n"
 
-// The §7.6 scripted session: word-per-line entry, a rejected word, a
-// multi-word line, the gate, and the empty-line submit.
+// The scripted plain-mode session covers word-per-line entry, a rejected
+// word, a multi-word line, the gate, and the empty-line submit.
 func TestPlainSessionTranscript(t *testing.T) {
 	input := strings.Join([]string{
 		"acrobat",
@@ -72,8 +72,8 @@ func TestPlainCanonicalizesCase(t *testing.T) {
 	}
 }
 
-// A multi-word line is atomic like paste (§7.2/B24): one bad token rejects
-// the whole line, nothing committed.
+// A multi-word line is atomic like paste: one bad token rejects the whole
+// line and commits nothing.
 func TestPlainMultiWordLineAtomic(t *testing.T) {
 	input := "acrobat zzznotaword cufflink\n" + // rejected whole
 		"acrobat cufflink dresser osmosis riverboat tulip wolverine\n\n"
@@ -118,8 +118,8 @@ func TestPlainEarlySubmitGate(t *testing.T) {
 	}
 }
 
-// EOF at any prompt aborts as an interrupt: the caller treats it exactly
-// like Ctrl+C at the pre-fetch prompt (nothing lost, §7.2).
+// EOF at any prompt aborts as an interrupt: the caller treats it like Ctrl+C
+// at the pre-fetch prompt, before anything is lost.
 func TestPlainEOFIsInterrupt(t *testing.T) {
 	for _, input := range []string{"", "acrobat\n", "not-a-word\n"} {
 		if _, _, err := runPlain(t, input, 7); !errors.Is(err, ErrInterrupted) {

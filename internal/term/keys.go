@@ -1,8 +1,6 @@
-// Package term is the terminal layer: the pure list-locked autocomplete
-// state machine (ARCHITECTURE.md §7.2 as amended by A9–A12), the pure
-// width-aware renderer (§7.2 "Narrow terminals & resize", A10), the plain
-// accessibility mode (§7.6, B24), the raw-mode TTY plumbing (§21), the
-// alternate-screen viewer (§8.1).
+// Package term owns the pure list-locked autocomplete state machine, the
+// width-aware renderer, the plain accessibility mode, raw-mode TTY plumbing,
+// and the alternate-screen viewer.
 package term
 
 import (
@@ -32,20 +30,19 @@ const (
 )
 
 // event is one abstract input gesture. The decoder (below) owns byte
-// decoding, bracketed-paste framing, and swallowing whole ESC/CSI sequences
-// (§7.2 "ESC-initiated sequences" row) — which is why no Escape/Arrow kind
-// exists in this vocabulary.
+// decoding, bracketed-paste framing, and swallowing whole ESC/CSI sequences,
+// which is why no Escape/Arrow kind exists in this vocabulary.
 type event struct {
 	Kind  eventKind
 	R     rune   // kindRune only
 	Paste []byte // kindPaste only; may hold secret bytes — the consumer wipes it
 }
 
-// pasteEnd is the bracketed-paste terminator (mode 2004, §7.2 paste row).
+// pasteEnd is the bracketed-paste mode-2004 terminator.
 const pasteEnd = "\x1b[201~"
 
-// maxSeqLen bounds an ESC-initiated sequence, ESC included (§7.2: "bounded
-// ≤ 16 bytes"). Anything longer is abandoned as ignored.
+// maxSeqLen bounds an ESC-initiated sequence, including ESC. Anything longer
+// is abandoned as ignored.
 const maxSeqLen = 16
 
 // maxPasteBytes bounds the decoder before any consumer-specific validation.
@@ -67,7 +64,7 @@ const (
 // keyDecoder is the PURE incremental byte-stream → event decoder. It does no
 // I/O and keeps no clock: it consumes bytes and reports need-more via
 // pending(); the TTY reader owns the 50 ms inter-byte timeout and calls
-// flush() when it expires (§7.2 ESC row).
+// flush() when it expires.
 type keyDecoder struct {
 	st     decodeState
 	seqLen int    // bytes consumed since ESC (bound check)
@@ -102,7 +99,7 @@ func (d *keyDecoder) flush() []event {
 		return nil
 	}
 	// An abandoned paste (EOF mid-payload) never reaches a consumer, so the
-	// "consumer wipes event.Paste" rule cannot cover it — wipe it here (§12).
+	// consumer-wiping rule cannot cover it, so wipe it here.
 	secret.Wipe(d.paste)
 	d.reset()
 	return []event{{Kind: kindIgnored}}

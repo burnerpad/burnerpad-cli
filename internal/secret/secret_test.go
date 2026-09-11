@@ -160,7 +160,7 @@ func TestRedaction(t *testing.T) {
 		}
 	}
 
-	// The accidental-wrap path §12 exists for: fmt.Errorf must leak nothing,
+	// Exercise the accidental-wrap path: fmt.Errorf must leak nothing,
 	// including through further %w wrapping.
 	err := fmt.Errorf("outer: %w", fmt.Errorf("open failed: %v", s))
 	if msg := err.Error(); strings.Contains(msg, probe) {
