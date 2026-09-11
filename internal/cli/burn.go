@@ -76,6 +76,9 @@ func runBurn(a *application, flags *burnFlags, positionals []string) error {
 			return usage("invalid_input", "burn needs a full share URL or current 26-character identifier")
 		}
 		if target.Origin != "" {
+			if err := a.warnBeforeNetwork("the share URL is now present in shell history"); err != nil {
+				return err
+			}
 			server, err = api.ParseBaseURL(target.Origin)
 			if err != nil {
 				return usage("invalid_input", "the share URL does not name a safe server origin")
