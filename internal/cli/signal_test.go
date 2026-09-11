@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -123,10 +122,7 @@ func TestRunSignalAfterMutationTransmissionReportsOutcomeUnknown(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			token := filepath.Join(t.TempDir(), "token")
-			if err := os.WriteFile(token, []byte(contractToken+"\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			token := credentialFile(t, "token", contractToken+"\n")
 			signals := make(chan os.Signal)
 			e, stdout, stderr := contractEnv(test.args(srv.URL, phraseFile(t), token), test.stdin)
 			e.StdinPiped = test.piped

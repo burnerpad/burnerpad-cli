@@ -19,6 +19,9 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - A wrong phrase is retried locally against held ciphertext and cannot issue another claim.
 - Remote servers require verified HTTPS, loopback alone may use HTTP, and redirects are refused.
 - Passphrases, tokens, and plaintext have no argv/environment interface.
+- Named passphrase and management-token files are opened without following a final symlink/reparse point and
+  validated on the opened handle as current-user-owned, owner-only regular files before any network request;
+  macOS extended ACLs are refused because they can grant access outside the BSD mode bits.
 - Both interactive viewer modes treat plaintext as untrusted display data and visibly escape terminal
   controls and Unicode format characters. Pipe and file destinations retain the authenticated bytes, and
   decoded JSON round-trips them.
@@ -44,6 +47,9 @@ the safe, escaped rendition in scrollback; the alternate screen only reduces pri
 compromised terminal, or a caller that replays byte-exact pipe, file, or decoded-JSON output to a terminal,
 remains out of scope. Callers that pipe plaintext into an external clipboard tool own its integrity and
 retention behavior.
+Credential-file metadata cannot protect against a compromised current account, root/administrator access,
+or a filesystem/kernel that reports false ownership or access-control data. Ancestor directory symlinks are
+permitted; the opened object itself is still validated without a path/stat race.
 Intrinsically blocked operating-system I/O may delay graceful termination; a second signal restores immediate
 OS termination and can bypass best-effort terminal or file cleanup. SIGKILL cannot run cleanup.
 

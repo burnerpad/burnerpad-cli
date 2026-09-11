@@ -196,8 +196,11 @@ func (a *application) readPassphrase(ask bool, path string, descriptor int) ([]b
 		if path == "-" {
 			return nil, usage("invalid_credential_source", "--passphrase-file does not accept -")
 		}
-		f, openErr := os.Open(path)
+		f, openErr := secret.OpenCredentialFile(path)
 		if openErr != nil {
+			if errors.Is(openErr, secret.ErrUnprotectedCredentialFile) {
+				return nil, usage("invalid_credential_source", "the passphrase file must be an owner-only regular file")
+			}
 			return nil, local("cannot read the passphrase file")
 		}
 		raw, err = readBounded(a.context(), f, wordlist.MaxPhraseBytes)

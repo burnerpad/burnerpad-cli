@@ -128,8 +128,11 @@ func (a *application) readToken(flags *burnFlags) (string, error) {
 	var raw []byte
 	switch {
 	case flags.tokenFile != "":
-		f, err := os.Open(flags.tokenFile)
+		f, err := secret.OpenCredentialFile(flags.tokenFile)
 		if err != nil {
+			if errors.Is(err, secret.ErrUnprotectedCredentialFile) {
+				return "", usage("invalid_credential_source", "the management-token file must be an owner-only regular file")
+			}
 			return "", local("cannot read the management-token file")
 		}
 		raw, err = readBounded(a.context(), f, 256)

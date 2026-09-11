@@ -43,6 +43,7 @@ record preserves why a decision stands and marks displaced pre-release decisions
 | [0034](0034-trusted-default-branch-immutable-releases.md) | Release only from the trusted default branch into an immutable draft | Release authorization boundary |
 | [0035](0035-retire-unverifiable-clipboard-delivery.md) | Retire unverifiable clipboard delivery before version one | Destination-success boundary |
 | [0036](0036-retire-inert-quiet-option.md) | Retire the inert quiet option before version one | Minimal command surface |
+| [0037](0037-validate-named-credential-files.md) | Validate named credential files on the opened handle | Credential-file trust boundary |
 
 New ADRs: next number, same template (Date/Status/Source, Context, Decision, Consequences,
 Alternatives where meaningful). Superseding an ADR: new record, link both ways, flip the old

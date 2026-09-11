@@ -70,5 +70,8 @@ derived from the immutable release tag and never hardcoded in source.
 - Bound bracketed paste and interactive lines at their allocation boundary, wiping and draining oversized
   input before a later prompt can consume it.
 - Keep rejected typed, pasted, and plain-line passphrase material out of interactive diagnostics.
+- Enforce current-user ownership, regular-file type, owner-only modes without macOS extended ACLs or
+  owner-only Windows DACLs, and final-component
+  symlink/reparse refusal for named passphrase and management-token files before network access.
 - Warn before credential input or network access when `burn` receives a full share URL in argv; bare IDs and
   piped create receipts remain silent because they do not place a share URL in shell history.

@@ -133,6 +133,15 @@ It is rejected before encryption/network if empty, invalid UTF-8, or larger than
 Passphrases come only from the controlling-terminal prompt, `--passphrase-file`, or `--passphrase-fd`.
 Management tokens come only from a piped create receipt, controlling-terminal hidden prompt,
 `--token-file`, or `--token-fd`. File `-` is rejected for credentials and descriptors must be at least 3.
+Named credential files are opened once and validated on that opened handle before reading. Linux and macOS
+require a regular file owned by the effective user with no group/other permission bits and refuse a symlink
+as the final path component; macOS also refuses any extended ACL because it can grant access independently of
+those mode bits. Windows opens the reparse point itself and requires a non-reparse regular disk
+file owned by the process-token user; its protected, non-null DACL must contain a current-user allow entry and
+no allow entry for another principal. Unknown Windows ACE forms fail closed. Policy failures are
+`invalid_credential_source`; an inaccessible or missing file remains `local_io_failed`. Credential descriptor
+options are deliberately excluded because an already-open descriptor is an explicit capability and may be a
+pipe. Plaintext input, ciphertext input, and output/recovery destinations have separate policies.
 No plaintext, passphrase, or token argv/environment interface exists. Interactive allocation is bounded at
 the reader: bracketed paste and share-URL lines at 4,096 bytes, phrase lines at 1,024 bytes, and management
 tokens at 256 bytes. An oversized line is wiped and drained before another prompt can consume input.

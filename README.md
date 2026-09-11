@@ -90,6 +90,16 @@ burnerpad create --json --passphrase-file phrase < secret.txt |
   burnerpad burn --json
 ```
 
+Named passphrase and management-token files are checked, not merely described as protected. On Linux and
+macOS the opened object must be a regular file owned by the current user with no group or other permission
+bits (normally mode `0600` or `0400`), no macOS extended ACL, and no symlink as its final path component. On
+Windows it must be
+a non-reparse regular disk file owned by the current user, with inheritance disabled and a DACL that grants
+access only to that user. An unsafe file is rejected before network access. File descriptors are already-open
+capabilities and may intentionally be pipes, so these checks apply only to `--passphrase-file` and
+`--token-file`. Omit the file option to use the protected terminal prompt if managing file permissions is
+inconvenient.
+
 ## Commands
 
 | Command | Purpose |

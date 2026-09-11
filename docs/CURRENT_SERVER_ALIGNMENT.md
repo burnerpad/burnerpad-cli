@@ -5,7 +5,7 @@ release run necessarily remain post-merge acceptance steps.
 
 This plan replaces the unreleased pre-1.0 client behavior with the current burnerpad-lite product contract.
 It is the implementation checklist for the first public CLI release, `v1.0.0`. The accepted decisions are
-recorded in ADR-0021 through ADR-0035. Superseded ADRs and the explicitly historical glossary remain only as
+recorded in ADR-0021 through ADR-0037. Superseded ADRs and the explicitly historical glossary remain only as
 decision history.
 
 There are no remaining product decisions in this plan. Discoveries that contradict the current
@@ -88,6 +88,14 @@ is an unknown command; claiming always requires `burnerpad reveal`.
   `https://burnerpad.io`.
 - There is no configuration file, persistent state, telemetry, crash reporter, update check,
   `--insecure-http`, or TLS-verification bypass.
+
+Named passphrase and management-token files are validated on the same handle used for reading. Linux and
+macOS require a current-user-owned regular file with no group/other permission bits and no final-component
+symlink; macOS also rejects every extended ACL. Windows requires a current-user-owned, non-reparse regular
+disk file whose protected DACL has no
+allow entry for another principal. Unknown access-control forms fail closed. These rules do not apply to
+descriptor sources, which are intentional already-open capabilities and may be pipes, or to non-credential
+input and output files.
 
 ### `create`
 
