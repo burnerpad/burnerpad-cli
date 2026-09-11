@@ -253,7 +253,7 @@ Finding 9 task ledger:
 - [x] 9.3 Make interactive phrase parsing use the canonical 7–64-word ASCII-whitespace grammar.
 - [x] 9.4 Bound bracketed-paste and plain prompt-line memory.
 - [x] 9.5 Replace create's misleading “Enter decrypts” prompt copy.
-- [ ] 9.6 Remove the inert `--quiet` surface.
+- [x] 9.6 Remove the inert `--quiet` surface.
 - [ ] 9.7 Remove the unused seeded-retry subsystem.
 - [ ] 9.8 Correct completion grammar and unsupported flag suggestions.
 - [ ] 9.9 Warn when `burn` receives a share URL in argv.
@@ -279,6 +279,16 @@ A conservative cleanup can remove or consolidate roughly 600-800 code/test/confi
 - Archive approximately 800 lines of completed/stale planning documents from the active documentation surface.
 
 Using a deep-module/deletion-test lens, `envelope`, `id`, `api`, and `secret` are mostly good, deep modules. `internal/term` is the outlier: large surface, many historical/test-only interfaces, and several defects leaking across CLI behavior.
+
+Finding 10 task ledger:
+
+- [ ] 10.1 Delete the unused spinner implementation and tests.
+- [ ] 10.2 Delete the unused seeded-retry subsystem (completed with 9.7).
+- [x] 10.3 Delete the inert `--quiet` configuration and interface (completed with 9.6).
+- [ ] 10.4 Replace duplicated completion vocabularies with one command schema (completed with 9.8).
+- [ ] 10.5 Share reveal/decrypt authentication, retry, validation, and delivery flow.
+- [ ] 10.6 Remove test-only exported terminal interfaces and wrappers.
+- [ ] 10.7 Remove stale completed planning documents and the obsolete prototype.
 
 ## What is strong
 

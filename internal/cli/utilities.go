@@ -11,7 +11,7 @@ import (
 )
 
 func utilityArgs(a *application, name string, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.quietFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
+	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
 		return usage("invalid_option", "global operation options do not apply to "+name)
 	}
 	if len(positionals) != 0 {
@@ -58,7 +58,7 @@ func runLicenses(a *application, positionals []string) error {
 }
 
 func runHelp(a *application, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.quietFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
+	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
 		return usage("invalid_option", "global operation options do not apply to help")
 	}
 	if len(positionals) > 1 {
@@ -87,13 +87,13 @@ or "burnerpad help decrypt" for command options.
 	if len(positionals) == 1 {
 		switch positionals[0] {
 		case "create":
-			text = "Usage: burnerpad create [--server ORIGIN] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ttl DURATION] [--input FILE] [--ask|--passphrase-file FILE|--passphrase-fd FD]\n"
+			text = "Usage: burnerpad create [--server ORIGIN] [--timeout DURATION] [--json] [--plain] [--no-color] [--ttl DURATION] [--input FILE] [--ask|--passphrase-file FILE|--passphrase-fd FD]\n"
 		case "reveal":
-			text = "Usage: burnerpad reveal [--server IGNORED] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--keep-blob FILE] [--out FILE] FULL_SHARE_URL\n"
+			text = "Usage: burnerpad reveal [--server IGNORED] [--timeout DURATION] [--json] [--plain] [--no-color] [--ask|--passphrase-file FILE|--passphrase-fd FD] [--keep-blob FILE] [--out FILE] FULL_SHARE_URL\n"
 		case "burn":
-			text = "Usage: burnerpad burn [--server ORIGIN] [--timeout DURATION] [--json] [--quiet] [--plain] [--no-color] [--token-file FILE|--token-fd FD] [FULL_SHARE_URL|ID]\nA piped create receipt supplies the link, server, and management token.\n"
+			text = "Usage: burnerpad burn [--server ORIGIN] [--timeout DURATION] [--json] [--plain] [--no-color] [--token-file FILE|--token-fd FD] [FULL_SHARE_URL|ID]\nA piped create receipt supplies the link, server, and management token.\n"
 		case "decrypt":
-			text = "Usage: burnerpad decrypt [--json] [--quiet] [--plain] [--no-color] --blob-file FILE|- [--ask|--passphrase-file FILE|--passphrase-fd FD] [--out FILE]\n"
+			text = "Usage: burnerpad decrypt [--json] [--plain] [--no-color] --blob-file FILE|- [--ask|--passphrase-file FILE|--passphrase-fd FD] [--out FILE]\n"
 		default:
 			return usage("invalid_input", "unknown help topic")
 		}
@@ -108,13 +108,13 @@ var completionScripts = map[string]string{
 	"bash": `_burnerpad() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
   local commands="create reveal burn decrypt words completion version licenses help"
-  local globals="--server --timeout --json --quiet --plain --no-color"
+  local globals="--server --timeout --json --plain --no-color"
   if (( COMP_CWORD == 1 )); then COMPREPLY=( $(compgen -W "$commands $globals" -- "$cur") ); return; fi
   case "${COMP_WORDS[1]}" in
-    create) local flags="--server --timeout --json --quiet --plain --no-color --ttl --input --ask --passphrase-file --passphrase-fd" ;;
-    reveal) local flags="--server --timeout --json --quiet --plain --no-color --ask --passphrase-file --passphrase-fd --keep-blob --out" ;;
-    burn) local flags="--server --timeout --json --quiet --plain --no-color --token-file --token-fd" ;;
-    decrypt) local flags="--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out" ;;
+    create) local flags="--server --timeout --json --plain --no-color --ttl --input --ask --passphrase-file --passphrase-fd" ;;
+    reveal) local flags="--server --timeout --json --plain --no-color --ask --passphrase-file --passphrase-fd --keep-blob --out" ;;
+    burn) local flags="--server --timeout --json --plain --no-color --token-file --token-fd" ;;
+    decrypt) local flags="--timeout --json --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out" ;;
     *) local flags="" ;;
   esac
   COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
@@ -135,7 +135,7 @@ _burnerpad() {
     'licenses:print license notices'
     'help:print help'
   )
-  globals=(--server --timeout --json --quiet --plain --no-color)
+  globals=(--server --timeout --json --plain --no-color)
   if (( CURRENT == 2 )); then
     _describe 'command' commands
     return
@@ -144,7 +144,7 @@ _burnerpad() {
     create) flags=($globals --ttl --input --ask --passphrase-file --passphrase-fd) ;;
     reveal) flags=($globals --ask --passphrase-file --passphrase-fd --keep-blob --out) ;;
     burn) flags=($globals --token-file --token-fd) ;;
-    decrypt) flags=(--timeout --json --quiet --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out) ;;
+    decrypt) flags=(--timeout --json --plain --no-color --blob-file --ask --passphrase-file --passphrase-fd --out) ;;
     *) flags=() ;;
   esac
   _describe 'option' flags
@@ -156,7 +156,6 @@ complete -c burnerpad -f -n "not __fish_seen_subcommand_from $burnerpad_commands
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn' -l server -r -d 'server origin'
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn' -l timeout -r -d 'request deadline'
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l json -d 'stable JSON result'
-complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l quiet -d 'less decoration'
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l plain -d 'accessible line prompts'
 complete -c burnerpad -n '__fish_seen_subcommand_from create reveal burn decrypt' -l no-color -d 'disable color'
 complete -c burnerpad -n '__fish_seen_subcommand_from create' -l ttl -r
@@ -172,13 +171,13 @@ complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-fd -r
 	"powershell": `Register-ArgumentCompleter -Native -CommandName burnerpad -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $commands = @('create','reveal','burn','decrypt','words','completion','version','licenses','help')
-  $globals = @('--server','--timeout','--json','--quiet','--plain','--no-color')
+  $globals = @('--server','--timeout','--json','--plain','--no-color')
   $command = $commandAst.CommandElements | ForEach-Object { $_.Value } | Where-Object { $_ -in $commands } | Select-Object -First 1
   $options = switch ($command) {
     'create'  { $globals + @('--ttl','--input','--ask','--passphrase-file','--passphrase-fd') }
     'reveal'  { $globals + @('--ask','--passphrase-file','--passphrase-fd','--keep-blob','--out') }
     'burn'    { $globals + @('--token-file','--token-fd') }
-    'decrypt' { @('--timeout','--json','--quiet','--plain','--no-color','--blob-file','--ask','--passphrase-file','--passphrase-fd','--out') }
+    'decrypt' { @('--timeout','--json','--plain','--no-color','--blob-file','--ask','--passphrase-file','--passphrase-fd','--out') }
     default   { if ($null -eq $command) { $commands + $globals } else { @() } }
   }
   $options |
@@ -189,7 +188,7 @@ complete -c burnerpad -n '__fish_seen_subcommand_from burn' -l token-fd -r
 }
 
 func runCompletion(a *application, positionals []string) error {
-	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.quietFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
+	if a.cfg.serverFlag || a.cfg.timeoutFlag || a.cfg.jsonFlag || a.cfg.plainFlag || a.cfg.noColorFlag {
 		return usage("invalid_option", "global operation options do not apply to completion")
 	}
 	if len(positionals) != 1 {

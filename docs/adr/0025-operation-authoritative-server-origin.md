@@ -2,6 +2,12 @@
 
 Date: 2026-09-10 · Status: Accepted
 
+## Amendment: quiet-mode retirement (2026-09-11)
+
+[ADR-0036](0036-retire-inert-quiet-option.md) removed the unreleased, inert `--quiet` option before version one.
+Server disclosure remains unconditional; the original phrase “under quiet mode” below records the design state
+at the time of this decision.
+
 ## Context
 
 The CLI defaults to burnerpad.io while supporting self-hosted instances. A reveal link already identifies the

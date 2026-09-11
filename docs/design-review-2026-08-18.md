@@ -83,7 +83,7 @@ None of these are ever auto-retried.
 **A2 · `--json` stderr-artifact rules contradict (§4.3 vs §5.2 vs transcript e).** → One rule: under
 `--json`, the **suite announcement stays on stderr** (it is a §5.2 safety guardrail) *and* appears
 in the object; phrase + mgmt token appear **only** in the object; hints/decoration are suppressed
-(implied `--quiet`). Re-render transcript (e) accordingly (drop the "shred it" hint line or move its
+(with decoration suppressed). Re-render transcript (e) accordingly (drop the "shred it" hint line or move its
 substance into the man page).
 
 **A3 · Reveal target precedence inverted (§5.3 rows 2/4: "first line of stdin, else argv").** →
@@ -163,7 +163,7 @@ guarantee, `GOFIPS140`) has been present since 1.24 and remains available.
 
 1. **B1** §5.2: restate the piped-`-P` refusal rationale (mechanical stdout rule, not "nowhere safe
    to go" — stderr may be a TTY); exit-2 message names `--json` / `--passphrase-file` / no-redirect.
-2. **B2** §4.3: fix the `--quiet` exemption justification (only the phrase risks unopenable
+2. **B2** §4.3: fix the decoration-suppression exemption justification (only the phrase risks unopenable
    secrets; token/suite lines are kept for different reasons).
 3. **B3** §7.2: advertise Ctrl+O in the `< 7 words` status (a short foreign phrase of list words
    currently strands the user with no discoverable path to free-form).

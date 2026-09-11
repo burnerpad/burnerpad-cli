@@ -5,6 +5,12 @@ Date: 2026-09-10 · Status: Accepted, amended for mutation-aware signals and by 
 ADR-0035 removes clipboard delivery from the local-failure and pending-cancellation portions of this interface;
 the remaining machine contract is unchanged.
 
+## Amendment: quiet-mode retirement (2026-09-11)
+
+[ADR-0036](0036-retire-inert-quiet-option.md) removed the unreleased `--quiet` option, which never affected
+output, before version one. Required recovery data, warnings, and diagnostics remain unconditional; the original
+quiet-mode sentence below is retained as history.
+
 ## Context
 
 The old CLI's unreleased JSON shapes and exit meanings described obsolete endpoints, suites, and recovery

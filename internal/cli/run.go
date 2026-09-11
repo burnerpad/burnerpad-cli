@@ -22,12 +22,10 @@ type config struct {
 	serverFlag  bool
 	timeoutFlag bool
 	jsonFlag    bool
-	quietFlag   bool
 	plainFlag   bool
 	noColorFlag bool
 	timeout     time.Duration
 	json        bool
-	quiet       bool
 	plain       bool
 	noColor     bool
 }
@@ -268,8 +266,6 @@ func dispatch(a *application) error {
 			a.cfg.timeoutFlag = true
 		case "json":
 			a.cfg.jsonFlag = true
-		case "quiet":
-			a.cfg.quietFlag = true
 		case "plain":
 			a.cfg.plainFlag = true
 		case "no-color":
@@ -280,7 +276,6 @@ func dispatch(a *application) error {
 	a.cfg = resolveConfig(a.env, g)
 	a.cfg.timeoutFlag = explicit.timeoutFlag
 	a.cfg.jsonFlag = explicit.jsonFlag
-	a.cfg.quietFlag = explicit.quietFlag
 	a.cfg.plainFlag = explicit.plainFlag
 	a.cfg.noColorFlag = explicit.noColorFlag
 	if a.cfg.timeout <= 0 {

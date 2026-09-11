@@ -41,7 +41,7 @@ The exact command set is `create`, `reveal`, `burn`, `decrypt`, `words`, `comple
 and `help`. Dispatch uses an exact switch. There are no aliases and a URL without `reveal` is an invalid
 command.
 
-Global controls are `--server`, `--timeout`, `--json`, `--quiet`, `--plain`, and `--no-color`. `--plain`
+Global controls are `--server`, `--timeout`, `--json`, `--plain`, and `--no-color`. `--plain`
 changes terminal mechanics, not plaintext safety: it uses the same escaped viewer rendition without raw
 mode, ANSI, or the alternate screen. The default deadline is 12 seconds. `--server` and
 `BURNERPAD_SERVER` apply only to create and bare-ID burn. The built-in server is
@@ -60,8 +60,8 @@ Server selection is operation-specific:
 | Burn bare ID | `--server` → `BURNERPAD_SERVER` → burnerpad.io |
 | Decrypt | No origin and no HTTP client |
 
-Every network command writes `burnerpad: server: <origin>` to stderr before its request, including quiet
-mode. Every network JSON success or error includes the origin. An irrelevant explicit `--server` produces a
+Every network command writes `burnerpad: server: <origin>` to stderr before its request. Every network JSON
+success or error includes the origin. An irrelevant explicit `--server` produces a
 warning; an irrelevant environment value is silently ignored.
 
 ## HTTP contract
