@@ -65,16 +65,15 @@ func TestReadPasswordContextPreCanceledAndSetupFailure(t *testing.T) {
 }
 
 func TestReadLineContextRawEditingAndPasteWipe(t *testing.T) {
-	tty, inW, _ := pipeTTY(t)
+	tty := &TTY{events: make(chan event, 16)}
+	tty.pumpOnce.Do(func() {}) // events are injected directly; this test owns the channel
 	payload := []byte("secret")
-	tty.startPump()
 	tty.events <- rn('a')
 	tty.events <- rn('b')
 	tty.events <- kd(kindBackspace)
 	tty.events <- event{Kind: kindPaste, Paste: payload}
 	tty.events <- kd(kindEnter)
 	line, err := tty.readLineContext(context.Background(), 64)
-	_ = inW.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
