@@ -58,8 +58,8 @@ func TestDecoderCoalescesCookedCRLF(t *testing.T) {
 	}
 }
 
-// The §7.2 ESC row: sequences are swallowed whole — ESC [ A never injects
-// an 'a', and none of the navigation keys produce anything but one ignore.
+// Escape sequences are swallowed whole: ESC [ A never injects an 'a', and
+// navigation keys produce only one ignored event each.
 func TestDecoderSwallowsSequencesWhole(t *testing.T) {
 	cases := []struct {
 		name string

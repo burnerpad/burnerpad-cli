@@ -2,8 +2,8 @@ package envelope
 
 import "runtime"
 
-// wipe zeroes b in place — the package-private twin of internal/secret.Wipe
-// (§12): identical 4-line construction, duplicated so envelope stays
+// wipe zeroes b in place. It is the package-private twin of
+// internal/secret.Wipe, duplicated so envelope stays
 // dependency-free and extractable. clear() compiles to memclr; KeepAlive
 // marks b live past the stores so the compiler cannot prove them dead and
 // elide them.

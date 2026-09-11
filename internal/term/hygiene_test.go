@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// Secret-hygiene regressions (§12): every path that drops a paste payload
-// without a consumer must wipe it itself.
+// Secret-hygiene regressions: every path that drops a paste payload without a
+// consumer must wipe it itself.
 
 // An unterminated bracketed paste abandoned by flush (EOF mid-payload) never
 // reaches a consumer — flush must zero the collected bytes.
@@ -47,8 +47,7 @@ func TestCompletedPasteSurvivesDelivery(t *testing.T) {
 	}
 }
 
-// The viewer ignores paste events — but it is their consumer, so it must
-// wipe them (§12: "the consumer wipes it").
+// The viewer ignores paste events, but as their consumer it must wipe them.
 func TestViewerWipesPasteEvents(t *testing.T) {
 	payload := []byte("pasted secret material")
 	events := []event{

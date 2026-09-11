@@ -4,7 +4,7 @@ import "crypto/rand"
 
 // randRead is the ONLY randomness seam in the package. It is unexported and
 // swapped exclusively by _test.go files in this same package (encrypt-KAT
-// replay at fixed key/iv/salt, §14.1). No build of the shipped binary and no
+// replay at a fixed key, IV, and salt). No build of the shipped binary and no
 // importer can ever reach it: the public API accepts only plaintext/passphrase
 // and always draws key, iv, and salt itself. This mirrors the reference
 // bundle's stance — burnerpad-crypto.js exposes no fixed-IV entrypoint either,

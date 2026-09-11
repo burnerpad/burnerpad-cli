@@ -34,6 +34,19 @@ go test ./...         # process/API contract tests and supported vectors
 The CI interoperability job checks out the revision in `.burnerpad-lite-revision`, starts the real server,
 and drives browser→CLI, CLI→browser, and CLI→CLI flows. Update the pin only with a reviewed compatibility run.
 
+## Test boundaries
+
+Behavioral tests use four durable seams:
+
+- the `burnerpad` process boundary: argv, environment, stdin/TTY, stdout, stderr, files, and exit status;
+- the burnerpad-lite HTTP boundary: exact method, path, body, and documented response semantics;
+- the suite-`0x02` envelope and wordlist boundary: upstream vectors and canonical phrase behavior; and
+- the official-client boundary: real browser↔CLI and CLI↔CLI flows against a real pinned server.
+
+Focused property and fuzz tests may exercise internal helpers. Orchestration tests should not mock
+CLI-owned collaborators or pin the current internal structure; assert the externally observable contract at
+one of the seams above instead.
+
 ## Manual smoke checklist (Windows / macOS interactive paths)
 
 CI covers the pure state machine and the Linux PTY end-to-end run; before a

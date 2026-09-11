@@ -136,7 +136,9 @@ It is rejected before encryption/network if empty, invalid UTF-8, or larger than
 
 Passphrases come only from the controlling-terminal prompt, `--passphrase-file`, or `--passphrase-fd`.
 Management tokens come only from a piped create receipt, controlling-terminal hidden prompt,
-`--token-file`, or `--token-fd`. File `-` is rejected for credentials and descriptors must be at least 3.
+`--token-file`, or `--token-fd`. A valid management token is the canonical unpadded base64url encoding of
+exactly 32 bytes and is therefore exactly 43 characters. File `-` is rejected for credentials and descriptors
+must be at least 3.
 Named credential files are opened once and validated on that opened handle before reading. Linux and macOS
 require a regular file owned by the effective user with no group/other permission bits and refuse a symlink
 as the final path component; macOS also refuses any extended ACL because it can grant access independently of

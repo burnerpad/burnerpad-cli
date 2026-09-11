@@ -26,7 +26,7 @@ func script(evs ...event) func() (event, error) {
 
 func TestViewerAltScreenGolden(t *testing.T) {
 	var buf bytes.Buffer
-	// the §10(c) plaintext: exactly 52 bytes
+	// A representative secret of exactly 52 bytes.
 	body := []byte("db: postgres://svc_deploy:wR8-kk2@10.0.4.7:5432/prod")
 	err := showViewer(&buf, script(rn('q')), body, ViewerOpts{NoColor: true})
 	if err != nil {

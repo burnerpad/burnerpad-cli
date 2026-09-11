@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// TestTranscript10c replays the §10(c) keystroke-by-keystroke session
-// exactly, asserting every annotated status/ghost/commit point:
+// TestTranscript10c replays the representative keystroke-by-keystroke session
+// exactly, asserting every annotated status, ghost, and commit point:
 //
 //	word 1/7 ▸ a‸            status: 126 words match
 //	word 1/7 ▸ ac‸           status: 10 match: academy accountant acetone …
@@ -133,10 +133,9 @@ func TestTranscript10c(t *testing.T) {
 	}
 }
 
-// Keystroke economics claim of §10(c): the 7-word happy path above is
-// 3 chars + Space per word plus Enter ≈ 29 gestures. Sanity-check that the
-// per-word 3-keystroke uniqueness held at every word (implied by the ghost
-// assertions), and that the whole phrase needed no more than 4 gestures/word.
+// The seven-word happy path above is three characters plus Space per word,
+// then Enter: about 29 gestures. This checks that every word is unique at
+// three keystrokes and the phrase needs no more than four gestures per word.
 func TestTranscriptKeystrokeBudget(t *testing.T) {
 	m := newMachine(0)
 	words := []string{"acrobat", "cufflink", "dresser", "osmosis", "riverboat", "tulip", "wolverine"}

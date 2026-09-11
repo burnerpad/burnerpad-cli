@@ -1,6 +1,6 @@
 # ADR-0002: One-dependency freeze; hand-rolled terminal layer
 
-Date: 2026-08-18 · Status: Accepted · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §2 (M6), §7.2, §19
+Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0039](0039-two-direct-go-team-modules.md) (module and import boundaries) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §2 (M6), §7.2, §19
 
 Implementation amendment (2026-09-11): the shell adapters remain first-party and dependency-free, but their
 command and option vocabularies are now generated from the same ordered command schema and stdlib `flag.FlagSet`

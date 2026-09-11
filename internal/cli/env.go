@@ -1,8 +1,7 @@
-// Package cli is the command chassis: flag parsing and dispatch (§4), the
-// stream-discipline printer (§5.1), the single exit table (§9), config
-// resolution (§4.3/§4.5), passphrase-source resolution (§7.5), and the small
-// self-contained commands (words/licenses/version/completion/help). The
-// network and local subcommands live in their own files.
+// Package cli is the command chassis: flag parsing and dispatch, stream
+// discipline, the single exit table, configuration and credential-source
+// resolution, and the small words/licenses/version/completion/help commands.
+// Network and local subcommands live in their own files.
 //
 // User-visible behavior is specified by docs/ARCHITECTURE.md. Stable machine
 // formats and command-schema relationships are exercised as contracts.
@@ -27,15 +26,15 @@ type Env struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
-	// TTY-ness per stream, decided by term.IsTerminal on the real fds
-	// (§5.1: interactivity is decided only by these, never by env vars).
+	// TTY-ness per stream, decided by term.IsTerminal on the real descriptors;
+	// environment variables never decide interactivity.
 	StdinTTY, StdoutTTY, StderrTTY bool
 	// StdinPiped distinguishes a real pipe/redirect from a non-interactive
 	// character device such as /dev/null when checking competing inputs.
 	StdinPiped bool
 
 	// Getenv looks up one environment variable ("" = unset). The complete
-	// variable surface is the §4.5 table; nothing else is ever read.
+	// variable surface is deliberately closed; nothing else is ever read.
 	Getenv func(string) string
 
 	// OpenTTY opens the controlling terminal (/dev/tty; CONIN$/CONOUT$ on
@@ -47,8 +46,8 @@ type Env struct {
 	// own channel.
 	Signals <-chan os.Signal
 
-	// Build identity, from -ldflags -X main.* (§22.2). Date is the commit
-	// date, never the build clock (§22.3).
+	// Build identity comes from -ldflags -X main.*. Date is the commit date,
+	// never the build clock.
 	Version, Commit, Date string
 }
 

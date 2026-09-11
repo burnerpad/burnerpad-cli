@@ -11,9 +11,9 @@ import (
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
 )
 
-// Set via -ldflags "-X main.version=… -X main.commit=… -X main.date=…"
-// (§22.2). They MUST live in package main — the linker silently ignores -X
-// for absent symbols. date is the commit date, never the build clock (§22.3).
+// Set via -ldflags "-X main.version=… -X main.commit=… -X main.date=…". They
+// must live in package main because the linker silently ignores -X for absent
+// symbols. date is the commit date, never the build clock.
 var (
 	version = "dev"
 	commit  = "unknown"
@@ -21,7 +21,8 @@ var (
 )
 
 func main() {
-	// Before any secret exists: no core dumps, not ptrace-attachable (§12).
+	// Harden before any secret exists: disable core dumps and, where supported,
+	// same-user process attachment.
 	// A hardened process is preferred, a working one is required.
 	secret.Harden()
 	os.Exit(cli.Run(cli.OSEnv(version, commit, date)))

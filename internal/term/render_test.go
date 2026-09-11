@@ -8,8 +8,8 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// sixteen real max-length (10-char) list words — the §7.2 worst case
-// ("-w 16 phrases certainly do" exceed 80 columns: 16×10+15 = 175 chars).
+// Sixteen real max-length (10-character) list words exceed an 80-column
+// terminal: 16*10 + 15 spaces = 175 characters.
 func maxLenWords(t *testing.T, n int) []string {
 	t.Helper()
 	var out []string
@@ -25,10 +25,9 @@ func maxLenWords(t *testing.T, n int) []string {
 	return nil
 }
 
-// The §7.2/A10 no-wrap property: the rendered line always fits in strictly
-// fewer than width columns (one cell reserved for the cursor), so CR+EL
-// repaint on a single physical row can never wrap — at every width 20..120,
-// with 16 max-length committed words and every buf/ghost shape.
+// The rendered line always fits in strictly fewer than width columns (one
+// cell is reserved for the cursor), so CR+EL repaint on a single physical row
+// cannot wrap at widths 20..120 with every tested buffer/ghost shape.
 func TestRenderNeverWraps(t *testing.T) {
 	committedSets := [][]string{
 		nil,
@@ -101,8 +100,8 @@ func TestRenderHeadElision(t *testing.T) {
 }
 
 // The head-elision formula alone breaks below ~22 columns (prompt 11 + word
-// 10 + 1 reserve > 20): A10's stage 2 drops the ghost, stage 3 head-elides
-// buf, and the line must still never wrap.
+// 10 + 1 reserve > 20): the second stage drops the ghost, the third head-elides
+// the buffer, and the line must still never wrap.
 func TestRenderNarrowDegradation(t *testing.T) {
 	committed := maxLenWords(t, 7)
 	pre, ghost := renderLine(promptLabel(len(committed), wordlist.PhraseWords), committed, "unquenche", "d", 20)
@@ -116,8 +115,8 @@ func TestRenderNarrowDegradation(t *testing.T) {
 	}
 }
 
-// A10 stage 2 in isolation: the ghost loses columns from its end before any
-// of the user's own buf is touched.
+// The ghost loses columns from its end before any of the user's own buffer is
+// touched.
 func TestRenderGhostDroppedBeforeBuf(t *testing.T) {
 	// "word 1/7 ▸ " (11) + buf 5 + ghost 5 = 21 > 19 usable: two ghost runes drop.
 	pre, gh := renderLine("word 1/7 ▸ ", nil, "quesa", "dilla", 20)
@@ -129,8 +128,8 @@ func TestRenderGhostDroppedBeforeBuf(t *testing.T) {
 	}
 }
 
-// §7.2 counter as amended by A11: `word N/7 ▸` while entering words 1..7,
-// then the COMMITTED count — `7 words ▸`, never `8 words ▸`.
+// The counter shows `word N/7 ▸` while entering words 1..7, then the committed
+// count: `7 words ▸`, never `8 words ▸`.
 func TestPromptLabel(t *testing.T) {
 	cases := []struct {
 		n    int

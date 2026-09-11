@@ -1,6 +1,6 @@
 # ADR-0001: Go as the implementation language (floor go1.25)
 
-Date: 2026-08-18 · Status: Accepted · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §3
+Date: 2026-08-18 · Status: Accepted · Amended by: [ADR-0039](0039-two-direct-go-team-modules.md) (direct dependency count) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md) §3
 
 ## Context
 

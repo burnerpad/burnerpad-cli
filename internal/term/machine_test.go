@@ -9,7 +9,7 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// --- tiny step DSL for table-driven event tests (ported from the prototype) --
+// --- tiny step DSL for table-driven event tests -----------------------------
 
 func rn(r rune) event      { return event{Kind: kindRune, R: r} }
 func kd(k eventKind) event { return event{Kind: k} }
@@ -67,7 +67,7 @@ func runSteps(t *testing.T, m *machine, steps []step) {
 
 const ctrlOHint = ""
 
-// --- §7.2 key table, row by row (A9–A12, B3, B24) --------------------------
+// --- key behavior, row by row -----------------------------------------------
 
 func TestKeyTable(t *testing.T) {
 	cases := []struct {
@@ -176,7 +176,7 @@ func TestKeyTable(t *testing.T) {
 			},
 		},
 		{
-			name: "Enter commits unique buf ONLY; below 7 words reports the count (A12+B3)",
+			name: "Enter commits unique buf only; below 7 words reports the count",
 			steps: append(typeRunes("acr"),
 				step{ev: kd(kindEnter), expect: expect{committed: []string{"acrobat"}, buf: sp(""),
 					done: bp(false), status: sp("1/7 — need at least 7 words" + ctrlOHint)}}),
@@ -286,7 +286,7 @@ func TestKeyTable(t *testing.T) {
 			},
 		},
 		{
-			name: "paste: leaves a partial buf untouched (B24)",
+			name: "paste: leaves a partial buf untouched",
 			steps: append(typeRunes("tu"),
 				step{ev: paste("acrobat"), expect: expect{committed: []string{"acrobat"}, buf: sp("tu")}}),
 		},
@@ -337,10 +337,8 @@ func TestKeyTable(t *testing.T) {
 	}
 }
 
-// A12: Enter with a non-empty buf commits ONLY — even the 7th word. The
-// submit is always a second, deliberate Enter on an empty buf. (The
-// prototype allowed commit+submit in one keystroke; amendment A12 overrode
-// that, and this test pins the amended rule.)
+// Enter with a non-empty buffer commits only, even for the seventh word.
+// Submission requires a second, deliberate Enter on an empty buffer.
 func TestEnterCommitsSeventhWordThenSecondEnterSubmits(t *testing.T) {
 	m := newMachine(0)
 	out := m.handle(paste("acrobat cufflink dresser osmosis riverboat tulip"))
@@ -350,7 +348,7 @@ func TestEnterCommitsSeventhWordThenSecondEnterSubmits(t *testing.T) {
 	runSteps(t, m, typeRunes("wol"))
 	out = m.handle(kd(kindEnter))
 	if out.done {
-		t.Fatal("A12: Enter with non-empty buf must commit only, never submit")
+		t.Fatal("Enter with non-empty buf must commit only, never submit")
 	}
 	if want := "7 words · Enter submits — keep typing if the phrase was longer"; out.status != want {
 		t.Fatalf("commit status = %q, want %q", out.status, want)
@@ -478,8 +476,8 @@ func TestTabCommitsUniqueElseHoldsCandidateCount(t *testing.T) {
 	}
 }
 
-// The un-commit → edit → recommit loop: wrong-word correction without
-// retyping the phrase (§7.2 Backspace row rationale).
+// The un-commit, edit, and recommit loop corrects a wrong word without
+// retyping the phrase.
 func TestUncommitEditRecommit(t *testing.T) {
 	m := newMachine(0)
 	m.handle(paste("acrobat tupperware"))
@@ -515,11 +513,11 @@ func TestBufAlwaysHasCandidates(t *testing.T) {
 	}
 }
 
-// --- the A9 rule, pinned over the real list --------------------------------
+// --- typed-character reachability, pinned over the real list ----------------
 
-// A9: any printable rune is accepted iff ≥1 candidate would remain. '-' is
-// accepted exactly at "yo-" (unique → ghost "yo"); digits/punctuation still
-// reject everywhere else because no list word contains them.
+// A printable rune is accepted iff at least one candidate would remain. '-'
+// is accepted exactly at "yo-" (unique, with ghost "yo"); digits and other
+// punctuation reject because no list word contains them.
 func TestYoYoTypeable(t *testing.T) {
 	m := newMachine(0)
 	m.handle(rn('y'))
@@ -549,8 +547,8 @@ func TestYoYoTypeable(t *testing.T) {
 	}
 }
 
-// Every list word is reachable by pure typing under the A9 rule: each of its
-// prefixes has ≥1 candidate (itself). Verified over all 1296.
+// Every list word is reachable by pure typing: each prefix has at least one
+// candidate (the word itself). Verified over all 1,296 words.
 func TestReachabilityByTyping(t *testing.T) {
 	var failed []string
 	for _, w := range wordlist.Words() {

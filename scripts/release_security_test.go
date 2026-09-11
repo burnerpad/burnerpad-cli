@@ -422,55 +422,52 @@ func TestReadmeInstallationUsesOnlyReleaseArtifacts(t *testing.T) {
 }
 
 func TestPreReleaseDocumentsDoNotClaimExternalCompletion(t *testing.T) {
-	checks := []struct {
-		path      string
-		required  []string
-		forbidden []string
-	}{
-		{
-			path:     "../CHANGELOG.md",
-			required: []string{"## Unreleased\n"},
-		},
-		{
-			path:      "../docs/CURRENT_SERVER_ALIGNMENT.md",
-			required:  []string{"Status: pre-release."},
-			forbidden: []string{"Status: implemented", "local verification complete"},
-		},
-		{
-			path: "../docs/TASKS.md",
-			required: []string{
-				"- [x] Schedule the same Chromium matrix nightly",
-				"- [ ] Observe one successful scheduled Lite-main workflow run after merge.",
-				"- [ ] Dispatch `v1.0.0`",
-			},
-			forbidden: []string{
-				"- [x] Observe one successful scheduled Lite-main workflow run",
-				"- [x] Dispatch `v1.0.0`",
-			},
-		},
-		{
-			path:      "../RELEASING.md",
-			required:  []string{"final release-preparation pull request", "published release archive"},
-			forbidden: []string{"tap-installed"},
-		},
+	changelog, err := os.ReadFile("../CHANGELOG.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(changelog), "## Unreleased\n") {
+		t.Error("../CHANGELOG.md lacks an Unreleased section")
 	}
 
-	for _, check := range checks {
-		raw, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatal(err)
+	raw, err := os.ReadFile("../RELEASING.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	releasing := string(raw)
+	const heading = "## Pre-v1 external gates\n"
+	anchoredHeading := "\n" + heading
+	count := strings.Count(releasing, anchoredHeading)
+	start := strings.Index(releasing, anchoredHeading) + 1
+	if strings.HasPrefix(releasing, heading) {
+		count++
+		start = 0
+	}
+	if count != 1 {
+		t.Fatalf("../RELEASING.md contains the pre-v1 gate heading %d times, want exactly 1", count)
+	}
+	section := releasing[start:]
+	if end := strings.Index(section, "\n## "); end >= 0 {
+		section = section[:end]
+	} else {
+		t.Fatal("../RELEASING.md has no section after the pre-v1 external gates")
+	}
+	const expected = "## Pre-v1 external gates\n\n" +
+		"These gates remain unchecked until their evidence exists in GitHub. Local checks or manually triggered\n" +
+		"substitutes do not satisfy them.\n\n" +
+		"- [ ] Observe one successful scheduled Lite-main workflow run after the scheduling workflow reaches `main`.\n" +
+		"- [ ] Dispatch `v1.0.0` only after immutable releases are enabled and every repository-required check is\n" +
+		"  verified green on the release commit.\n"
+	if section != expected {
+		t.Errorf("../RELEASING.md pre-v1 external gates changed:\n%s\nwant exact unchecked gates:\n%s", section, expected)
+	}
+	for _, required := range []string{"final release-preparation pull request", "published release archive"} {
+		if !strings.Contains(releasing, required) {
+			t.Errorf("../RELEASING.md lacks release guidance %q", required)
 		}
-		documentation := string(raw)
-		for _, required := range check.required {
-			if !strings.Contains(documentation, required) {
-				t.Errorf("%s lacks pre-release marker %q", check.path, required)
-			}
-		}
-		for _, forbidden := range check.forbidden {
-			if strings.Contains(documentation, forbidden) {
-				t.Errorf("%s claims uncompleted event %q", check.path, forbidden)
-			}
-		}
+	}
+	if strings.Contains(releasing, "tap-installed") {
+		t.Error("../RELEASING.md claims an unavailable tap-installed release path")
 	}
 }
 
