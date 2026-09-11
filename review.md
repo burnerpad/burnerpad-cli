@@ -319,7 +319,7 @@ release gates remain external and deliberately unchecked.
 Finding 11 task ledger:
 
 - [x] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
-- [ ] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
+- [x] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
 - [ ] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
 - [ ] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
 - [ ] 11.5 Prove real Lite expiry end to end through the CLI.
@@ -335,6 +335,13 @@ their exits and exact ordered JSON. `retry_after` is emitted only for unsigned
 ASCII delta-seconds within `int64` range (including zero); malformed, signed,
 negative, and overflowing values are omitted. README, architecture, manpage,
 changelog, and ADR-0041 record the corrected contract.
+
+11.2 completed 2026-09-11: six raw-loopback HTTP/1.1 tests receive and
+fully drain exactly one create, claim, or revoke request before either closing
+without a response or returning an otherwise valid success body whose declared
+length is one byte too long. Every case produces the exact operation-specific
+outcome-unknown type, and repeated, race, and Windows/Darwin cross-compilation
+checks cover the fixture itself without adding a production test seam.
 
 ## What is strong
 
