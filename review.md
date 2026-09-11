@@ -318,7 +318,7 @@ release gates remain external and deliberately unchecked.
 
 Finding 11 task ledger:
 
-- [ ] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
+- [x] 11.1 Remove the unreachable `invalid_server_response` contract and finish ordered JSON-error and `retry_after` coverage.
 - [ ] 11.2 Exercise real connection loss and truncated response bodies for create, claim, and revoke; prove one request and outcome unknown.
 - [ ] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
 - [ ] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
@@ -326,6 +326,15 @@ Finding 11 task ledger:
 - [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
 - [ ] 11.7 Observe a successful scheduled Lite-main run after the workflow reaches `main` (GitHub-only).
 - [ ] 11.8 Verify every required check on the release commit and dispatch `v1.0.0` only after all prior gates pass (GitHub-only).
+
+11.1 completed 2026-09-11: the unreleased, unreachable
+`invalid_server_response` code and its unused API error type are gone; exit `8`
+now has the single reachable meaning `unsupported_secret`. The production
+registry and real `Run` paths bidirectionally pin all 17 remaining codes to
+their exits and exact ordered JSON. `retry_after` is emitted only for unsigned
+ASCII delta-seconds within `int64` range (including zero); malformed, signed,
+negative, and overflowing values are omitted. README, architecture, manpage,
+changelog, and ADR-0041 record the corrected contract.
 
 ## What is strong
 

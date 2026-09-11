@@ -247,8 +247,13 @@ func retryAfter(resp *http.Response) *int64 {
 	if raw == "" {
 		return nil
 	}
+	for _, ch := range raw {
+		if ch < '0' || ch > '9' {
+			return nil
+		}
+	}
 	n, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || n < 0 {
+	if err != nil {
 		return nil
 	}
 	return &n

@@ -18,7 +18,7 @@ derived from the immutable release tag and never hardcoded in source.
 - Owner-only, exclusive plaintext output and claimed-ciphertext recovery files.
 - Bounded, terminal-sized alternate-screen plaintext paging, exact piped UTF-8 output, and fixed JSON output.
 - Frozen exit meanings for input, local I/O, unavailable secrets, passphrase/plaintext failures, definitive
-  server rejection, temporary service failures, invalid responses, uncertain mutations, and internal faults.
+  server rejection, temporary service failures, unsupported ciphertext, uncertain mutations, and internal faults.
 - One-attempt mutation transport with explicit create/claim/revoke outcome-unknown reporting.
 - Pull-request and release interoperability gates against a reviewed burnerpad-lite revision, plus a
   compatibility workflow scheduled against burnerpad-lite `main`.
@@ -44,6 +44,8 @@ derived from the immutable release tag and never hardcoded in source.
 
 ### Removed
 
+- Retire the unreachable `invalid_server_response` JSON error and its unused API error type before version
+  one; exit `8` now means only that local ciphertext is unsupported.
 - Remove the inert `--quiet` option from parsing, help, completions, and documentation; supplying it is now an
   invalid option instead of silently producing unchanged output.
 - Delete the unused retained-word retry state, seed parser, rendering branch, and duplicate tests; local

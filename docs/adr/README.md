@@ -47,6 +47,7 @@ amended.
 | [0038](0038-github-releases-only-for-version-one.md) | Ship version one only from GitHub Releases | Distribution trust boundary |
 | [0039](0039-two-direct-go-team-modules.md) | Freeze two direct Go-team modules and exact public-package boundaries | Dependency and package boundary |
 | [0040](0040-egress-requirement-and-verification.md) | Keep the egress requirement distinct from its missing executable proof | Network-privacy evidence boundary |
+| [0041](0041-retire-unreachable-invalid-server-response.md) | Retire the unreachable invalid-server-response machine error | Version-one machine-error boundary |
 
 New ADRs: next number, same template (Date/Status/Source, Context, Decision, Consequences,
 Alternatives where meaningful). Superseding an ADR: new record, link both ways, flip the old
