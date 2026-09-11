@@ -11,7 +11,6 @@ type globalFlags struct {
 	serverExplicit bool
 	timeout        time.Duration
 	json           bool
-	quiet          bool
 	plain          bool
 	noColor        bool
 }
@@ -20,13 +19,12 @@ func registerGlobals(fs *flag.FlagSet, g *globalFlags) {
 	fs.StringVar(&g.server, "server", "", "server origin")
 	fs.DurationVar(&g.timeout, "timeout", 12*time.Second, "request timeout")
 	fs.BoolVar(&g.json, "json", false, "JSON output")
-	fs.BoolVar(&g.quiet, "quiet", false, "less decoration")
 	fs.BoolVar(&g.plain, "plain", false, "accessible line prompts")
 	fs.BoolVar(&g.noColor, "no-color", false, "disable color")
 }
 
 func resolveConfig(env Env, g globalFlags) config {
-	c := config{timeout: g.timeout, json: g.json, quiet: g.quiet, plain: g.plain, noColor: g.noColor, serverFlag: g.serverExplicit}
+	c := config{timeout: g.timeout, json: g.json, plain: g.plain, noColor: g.noColor, serverFlag: g.serverExplicit}
 	switch {
 	case g.serverExplicit:
 		c.server = g.server

@@ -63,9 +63,6 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 *--json*
 	Emit one stable JSON success or error object. Mutually exclusive with *--out*.
 
-*--quiet*
-	Suppress decoration. Security warnings, server disclosure, and necessary create recovery data remain.
-
 *--plain*
 	Use accessible line prompts and avoid raw-mode/alternate-screen behavior.
 

@@ -79,8 +79,8 @@ is an unknown command; claiming always requires `burnerpad reveal`.
 
 - `--json` selects the fixed machine result for create, reveal, burn, or decrypt. Utilities keep their
   purpose-specific text output and reject an inapplicable `--json`.
-- `--quiet` suppresses decoration, not security warnings, the resolved server, or information required to
-  recover a newly created secret.
+- Required security warnings, the resolved server, and information needed to recover a newly created secret
+  are always emitted; there is no quiet mode.
 - `--plain` keeps the accessible line-oriented prompt and terminal-safe plaintext renderer while avoiding
   raw mode, ANSI, and the alternate screen; `--no-color` and conventional `NO_COLOR` behavior remain.
 - `--timeout DURATION` defaults to 12 seconds and must be positive.
@@ -309,7 +309,7 @@ Primary files: `internal/api/api.go`, `internal/api/client.go`, `internal/api/er
 - Rename secret file input to `--input` and add `--token-fd`. Retire built-in clipboard delivery because its
   terminal protocol cannot establish destination success.
 - Resolve server origin per operation instead of globally redirecting every target. Always emit the human
-  server line before network access, including quiet mode; put it in every network JSON result.
+  server line before network access; put it in every network JSON result.
 - Remove `BURNERPAD_PASSPHRASE` and every obsolete environment lookup. Set the timeout default to 12 seconds.
 
 Primary files: `internal/cli/run.go`, `internal/cli/flags.go`, `internal/cli/config.go`,
@@ -361,7 +361,7 @@ Primary files: `internal/cli/burn.go`, `internal/cli/flags.go`, `internal/cli/ou
 - Remove IDs, suite labels, base64 plaintext, output paths, response bodies, and recovery blobs from machine
   output. Ensure decoding JSON's UTF-8 plaintext string reproduces the authenticated bytes exactly.
 - Golden-test every code, field order if promised by documentation, secret-redaction rule, human server line,
-  history warning, unknown-outcome message, and quiet-mode exception.
+  history warning, and unknown-outcome message.
 
 Primary files: `internal/cli/output.go`, `internal/cli/exit.go`, `internal/cli/help.go`, and golden tests.
 

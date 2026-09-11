@@ -212,9 +212,51 @@ func TestCurrentProcessRejectsDuplicateOptions(t *testing.T) {
 	}
 }
 
+func TestCurrentProcessRejectsRetiredQuietBeforeNetwork(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer srv.Close()
+
+	phrase := phraseFile(t)
+	token := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(token, []byte(contractToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	blob := envelope.EncodeToBytes(envelope.EncryptPassphrase([]byte(contractPhrase), []byte("must not be processed")))
+	for name, args := range map[string][]string{
+		"create before command":  {"--quiet", "create", "--server", srv.URL, "--passphrase-file", phrase},
+		"reveal after command":   {"reveal", "--quiet", "--passphrase-file", phrase, srv.URL + "/s/" + contractID},
+		"burn assigned true":     {"burn", "--quiet=true", "--server", srv.URL, "--token-file", token, contractID},
+		"decrypt assigned false": {"decrypt", "--quiet=false", "--blob-file", "-", "--passphrase-file", phrase},
+	} {
+		t.Run(name, func(t *testing.T) {
+			before := requests.Load()
+			stdin := "must not be processed"
+			if name == "decrypt assigned false" {
+				stdin = string(blob)
+			}
+			e, stdout, stderr := contractEnv(args, stdin)
+			if code := Run(e); code != 2 {
+				t.Fatalf("Run(%v)=%d, want 2; stderr=%s", args, code, stderr)
+			}
+			if !strings.Contains(stderr.String(), "invalid_option") {
+				t.Fatalf("Run(%v) stderr=%q, want invalid_option", args, stderr)
+			}
+			if got := requests.Load(); got != before {
+				t.Fatalf("retired --quiet sent %d requests", got-before)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("retired --quiet produced stdout: %q", stdout)
+			}
+		})
+	}
+}
+
 func TestCurrentProcessRejectsInapplicableGlobalOptions(t *testing.T) {
 	for _, args := range [][]string{
-		{"version", "--quiet"},
+		{"version", "--json"},
 		{"words", "--timeout", "1s"},
 		{"decrypt", "--timeout", "1s", "--blob-file", "blob"},
 	} {
@@ -470,29 +512,33 @@ func TestCurrentProcessRevealIgnoresExplicitServer(t *testing.T) {
 	}
 }
 
-func TestCurrentHelpOmitsRetiredClipboardOption(t *testing.T) {
-	for _, command := range []string{"create", "reveal", "decrypt"} {
+func TestCurrentHelpOmitsRetiredOptions(t *testing.T) {
+	for _, command := range []string{"create", "reveal", "burn", "decrypt"} {
 		t.Run(command, func(t *testing.T) {
 			e, stdout, stderr := contractEnv([]string{"help", command}, "")
 			if code := Run(e); code != 0 {
 				t.Fatalf("exit=%d stderr=%s", code, stderr)
 			}
-			if strings.Contains(stdout.String(), "--clip") {
-				t.Fatalf("help %s advertises retired --clip: %s", command, stdout)
+			for _, retired := range []string{"--clip", "--quiet"} {
+				if strings.Contains(stdout.String(), retired) {
+					t.Fatalf("help %s advertises retired %s: %s", command, retired, stdout)
+				}
 			}
 		})
 	}
 }
 
-func TestCurrentCompletionCommandOmitsRetiredClipboardOption(t *testing.T) {
+func TestCurrentCompletionCommandOmitsRetiredOptions(t *testing.T) {
 	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
 		t.Run(shell, func(t *testing.T) {
 			e, stdout, stderr := contractEnv([]string{"completion", shell}, "")
 			if code := Run(e); code != 0 {
 				t.Fatalf("exit=%d stderr=%s", code, stderr)
 			}
-			if strings.Contains(stdout.String(), "--clip") {
-				t.Fatalf("%s completion advertises retired --clip: %s", shell, stdout)
+			for _, retired := range []string{"--clip", "--quiet"} {
+				if strings.Contains(stdout.String(), retired) {
+					t.Fatalf("%s completion advertises retired %s: %s", shell, retired, stdout)
+				}
 			}
 		})
 	}

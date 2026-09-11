@@ -30,6 +30,11 @@ derived from the immutable release tag and never hardcoded in source.
 - Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a
   decrypt operation during `create --ask`.
 
+### Removed
+
+- Remove the inert `--quiet` option from parsing, help, completions, and documentation; supplying it is now an
+  invalid option instead of silently producing unchanged output.
+
 ### Security
 
 - Remote origins require verified HTTPS; plaintext HTTP is loopback-only; redirects are refused.
