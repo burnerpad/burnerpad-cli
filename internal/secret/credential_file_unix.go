@@ -21,14 +21,13 @@ func OpenCredentialFile(path string) (*os.File, error) {
 		}
 		return nil, credentialPathError(path, err)
 	}
-	var stat unix.Stat_t
-	if err := unix.Fstat(fd, &stat); err != nil {
+	stat, hasExtendedACL, err := credentialFileStat(fd)
+	if err != nil {
 		_ = unix.Close(fd)
 		return nil, credentialPathError(path, err)
 	}
-	hasExtendedACL, aclErr := credentialFileHasExtendedACL(fd)
 	if !protectedUnixCredentialStat(uint32(stat.Mode), stat.Uid, uint32(os.Geteuid())) ||
-		aclErr != nil || hasExtendedACL {
+		hasExtendedACL {
 		_ = unix.Close(fd)
 		return nil, credentialPathError(path, ErrUnprotectedCredentialFile)
 	}
