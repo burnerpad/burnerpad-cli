@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"unicode/utf8"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
@@ -54,21 +53,5 @@ func runDecrypt(a *application, flags *decryptFlags, positionals []string) error
 		return commandError{exit: 8, code: "unsupported_secret", message: "the ciphertext file is not canonical Burnerpad base64url"}
 	}
 	defer secret.Wipe(blob)
-	plaintext, err := envelope.DecryptPassphrase(blob, phrase)
-	for err == envelope.ErrAuthFail && a.canRetryPassphrase() {
-		secret.Wipe(phrase)
-		phrase, err = a.readPassphrase(true, "", -1)
-		if err != nil {
-			break
-		}
-		plaintext, err = envelope.DecryptPassphrase(blob, phrase)
-	}
-	if err != nil {
-		return mapDecryptError(err, "")
-	}
-	defer secret.Wipe(plaintext)
-	if !utf8.Valid(plaintext) {
-		return commandError{exit: 5, code: "plaintext_invalid", message: "the authenticated plaintext is not valid UTF-8 text"}
-	}
-	return a.deliverPlaintext(out, "decrypted", "", plaintext)
+	return a.decryptAndDeliver(blob, phrase, plaintextDelivery{out: out, retry: a})
 }

@@ -63,7 +63,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 	t.Run("piped stdout", func(t *testing.T) {
 		var stdout bytes.Buffer
 		a := &application{env: Env{Stdout: &stdout}}
-		if err := a.deliverPlaintext(nil, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(nil, "https://example.com", payload); err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(stdout.Bytes(), payload) {
@@ -74,7 +74,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 	t.Run("JSON", func(t *testing.T) {
 		var stdout bytes.Buffer
 		a := &application{env: Env{Stdout: &stdout}, cfg: config{json: true}}
-		if err := a.deliverPlaintext(nil, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(nil, "https://example.com", payload); err != nil {
 			t.Fatal(err)
 		}
 		var got revealResult
@@ -93,7 +93,7 @@ func TestPlaintextDeliveryPreservesAuthenticatedBytesOutsideViewer(t *testing.T)
 			t.Fatal(err)
 		}
 		a := &application{env: Env{}}
-		if err := a.deliverPlaintext(out, "revealed", "https://example.com", payload); err != nil {
+		if err := a.deliverPlaintext(out, "https://example.com", payload); err != nil {
 			out.discard()
 			t.Fatal(err)
 		}
