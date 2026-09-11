@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,63 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-type jsonErrorRunner func(*testing.T) (exit int, stdout, server string)
+type sensitiveValueClass string
+
+const (
+	wrongPhraseCanary       = "freeway faucet unnoticed energy emoticon elves enormous"
+	createPlaintextCanary   = "diagnostic create plaintext canary"
+	invalidPlaintextCanary  = "diagnostic invalid authenticated plaintext canary"
+	claimPlaintextCanary    = "diagnostic claim plaintext canary"
+	truncatedResponseCanary = "diagnostic-truncated-response-canary"
+)
+
+const (
+	sensitiveWrongPhrase       sensitiveValueClass = "wrong_phrase"
+	sensitiveCorrectPhrase     sensitiveValueClass = "correct_phrase"
+	sensitiveManagementToken   sensitiveValueClass = "management_token"
+	sensitivePlaintext         sensitiveValueClass = "plaintext"
+	sensitiveCiphertext        sensitiveValueClass = "ciphertext"
+	sensitiveCompleteResponse  sensitiveValueClass = "complete_response"
+	sensitiveTruncatedResponse sensitiveValueClass = "truncated_response"
+	sensitiveFullShareURL      sensitiveValueClass = "full_share_url"
+	sensitiveIdentifier        sensitiveValueClass = "identifier"
+	sensitiveFilesystemPath    sensitiveValueClass = "filesystem_path"
+	sensitiveNestedCause       sensitiveValueClass = "nested_cause"
+)
+
+var expectedRealRunSensitiveValueClasses = map[sensitiveValueClass]struct{}{
+	sensitiveWrongPhrase:       {},
+	sensitiveCorrectPhrase:     {},
+	sensitiveManagementToken:   {},
+	sensitivePlaintext:         {},
+	sensitiveCiphertext:        {},
+	sensitiveCompleteResponse:  {},
+	sensitiveTruncatedResponse: {},
+	sensitiveFullShareURL:      {},
+	sensitiveIdentifier:        {},
+	sensitiveFilesystemPath:    {},
+}
+
+type sensitiveValue struct {
+	class sensitiveValueClass
+	value string
+}
+
+type diagnosticObservation struct {
+	exit           int
+	stdout, stderr string
+	wantStderr     string
+	server         string
+	sensitive      []sensitiveValue
+}
+
+type jsonErrorRunner func(*testing.T) diagnosticObservation
+
+type receivedRequest struct {
+	method, path, body string
+	responseBytes      int
+	err                error
+}
 
 var expectedMachineErrorExits = map[string]int{
 	"invalid_command":           2,
@@ -67,32 +124,130 @@ func TestReportRejectsUnregisteredOrMismatchedMachineErrors(t *testing.T) {
 		}
 		const want = "{\"status\":\"error\",\"code\":\"internal\",\"message\":\"unexpected internal failure\"}\n"
 		if stdout.String() != want {
-			t.Errorf("report(%q/%d)=%q, want generic internal result %q", command.code, command.exit, stdout.String(), want)
+			t.Errorf("report(%q/%d) stdout_match=false stdout_len=%d", command.code, command.exit, stdout.Len())
+		}
+	}
+}
+
+func TestReportNeverTraversesNestedCauses(t *testing.T) {
+	const (
+		message = "reviewed machine error"
+		canary  = "diagnostic-nested-cause-canary"
+	)
+	if sensitiveNestedCause != "nested_cause" {
+		t.Fatalf("nested-cause sensitive class changed to %q", sensitiveNestedCause)
+	}
+	for code, exit := range machineErrorExits {
+		for _, jsonMode := range []bool{false, true} {
+			mode := "human"
+			if jsonMode {
+				mode = "json"
+			}
+			t.Run(mode+"/"+code, func(t *testing.T) {
+				var stdout, stderr bytes.Buffer
+				nested := fmt.Errorf("inner %s", canary)
+				command := commandError{
+					exit: exit, code: code, message: message,
+					cause: fmt.Errorf("outer cause: %w", nested),
+				}
+				err := fmt.Errorf("command wrapper: %w", command)
+				a := application{
+					env: Env{Stdout: &stdout, Stderr: &stderr},
+					cfg: config{json: jsonMode},
+				}
+				if got := a.report(err); got != exit {
+					t.Fatalf("report exit=%d, want %d", got, exit)
+				}
+				wantStdout, wantStderr := "", fmt.Sprintf("burnerpad: %s: %s\n", code, message)
+				if jsonMode {
+					wantStdout = fmt.Sprintf(`{"status":"error","code":%q,"message":%q}`+"\n", code, message)
+					wantStderr = ""
+				}
+				if strings.Contains(stdout.String()+stderr.String(), canary) {
+					t.Fatalf("code=%s mode=%s diagnostic disclosed nested cause", code, mode)
+				}
+				if stdout.String() != wantStdout || stderr.String() != wantStderr {
+					t.Fatalf("code=%s mode=%s stdout_match=%t stdout_len=%d stderr_match=%t stderr_len=%d",
+						code, mode, stdout.String() == wantStdout, stdout.Len(), stderr.String() == wantStderr, stderr.Len())
+				}
+			})
 		}
 	}
 }
 
 func TestCurrentJSONErrorVocabularyAndExitMapping(t *testing.T) {
 	responseServer := func(status int, body string, retryAfter ...int64) jsonErrorRunner {
-		return func(t *testing.T) (int, string, string) {
+		return func(t *testing.T) diagnosticObservation {
 			t.Helper()
-			srv, _ := contractResponseServer(t, status, body, retryAfter...)
-			token := credentialFile(t, "token", contractToken+"\n")
-			env, stdout, _ := contractEnv([]string{
-				"burn", "--server", srv.URL, "--json", "--token-file", token, contractID,
+			rawRetryAfter := ""
+			if len(retryAfter) != 0 {
+				rawRetryAfter = fmt.Sprint(retryAfter[0])
+			}
+			srv, received := recordedResponseServer(t, status, body, rawRetryAfter, 0)
+			tokenPath := credentialFile(t, "diagnostic-token-file-path-canary", contractToken+"\n")
+			env, stdout, stderr := contractEnv([]string{
+				"burn", "--server", srv.URL, "--json", "--token-file", tokenPath, contractID,
 			}, "")
-			return Run(env), stdout.String(), srv.URL
+			observation := diagnosticObservation{
+				exit: Run(env), stdout: stdout.String(), stderr: stderr.String(),
+				wantStderr: "burnerpad: server: " + srv.URL + "\n", server: srv.URL,
+			}
+			request := takeReceivedRequest(t, received, "burn")
+			wantPath := "/api/secrets/" + contractID + "/burn"
+			wantBody := `{"mgmt_token":"` + contractToken + `"}`
+			if request.err != nil || request.method != http.MethodPost || request.path != wantPath ||
+				request.body != wantBody || request.responseBytes != len(body) {
+				t.Fatal("burn response fixture did not observe the expected complete request and response")
+			}
+			observation.sensitive = []sensitiveValue{
+				{class: sensitiveManagementToken, value: contractToken},
+				{class: sensitiveIdentifier, value: contractID},
+			}
+			observation.sensitive = append(observation.sensitive, diagnosticPathValues(tokenPath)...)
+			if status == http.StatusOK {
+				observation.sensitive = append(observation.sensitive, diagnosticResponseValues(sensitiveCompleteResponse, body)...)
+			}
+			return observation
 		}
 	}
 	createResponse := func(status int, body string) jsonErrorRunner {
-		return func(t *testing.T) (int, string, string) {
+		return func(t *testing.T) diagnosticObservation {
 			t.Helper()
-			srv, _ := contractResponseServer(t, status, body)
-			env, stdout, _ := contractEnv([]string{
-				"create", "--server", srv.URL, "--json", "--passphrase-file", phraseFile(t),
-			}, "plaintext")
+			srv, received := recordedResponseServer(t, status, body, "", 0)
+			phrasePath := credentialFile(t, "diagnostic-create-phrase-path-canary", contractPhrase+"\n")
+			env, stdout, stderr := contractEnv([]string{
+				"create", "--server", srv.URL, "--json", "--passphrase-file", phrasePath,
+			}, createPlaintextCanary)
 			env.StdinPiped = true
-			return Run(env), stdout.String(), srv.URL
+			observation := diagnosticObservation{
+				exit: Run(env), stdout: stdout.String(), stderr: stderr.String(),
+				wantStderr: "burnerpad: server: " + srv.URL + "\n", server: srv.URL,
+			}
+			request := takeReceivedRequest(t, received, "create")
+			var payload struct {
+				Blob string `json:"blob"`
+			}
+			if request.err != nil || request.method != http.MethodPost || request.path != "/api/secrets" ||
+				request.responseBytes != len(body) || json.Unmarshal([]byte(request.body), &payload) != nil || payload.Blob == "" {
+				t.Fatal("create response fixture did not observe the expected complete request and response")
+			}
+			decoded, err := envelope.DecodeCanonical([]byte(payload.Blob))
+			if err != nil {
+				t.Fatal("create request ciphertext was not canonical base64url")
+			}
+			rawCiphertext := string(decoded)
+			clear(decoded)
+			observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveCorrectPhrase, contractPhrase)...)
+			observation.sensitive = append(observation.sensitive, diagnosticPathValues(phrasePath)...)
+			observation.sensitive = append(observation.sensitive,
+				sensitiveValue{class: sensitivePlaintext, value: createPlaintextCanary},
+				sensitiveValue{class: sensitiveCiphertext, value: payload.Blob},
+				sensitiveValue{class: sensitiveCiphertext, value: rawCiphertext},
+			)
+			if status == http.StatusOK {
+				observation.sensitive = append(observation.sensitive, diagnosticResponseValues(sensitiveCompleteResponse, body)...)
+			}
+			return observation
 		}
 	}
 
@@ -101,134 +256,218 @@ func TestCurrentJSONErrorVocabularyAndExitMapping(t *testing.T) {
 		name, code, message string
 		exit                int
 		retryAfter          *int64
+		expectedClasses     []sensitiveValueClass
 		run                 jsonErrorRunner
 	}{
 		{
 			name: "invalid command", exit: 2, code: "invalid_command",
-			message: "a command is required; run 'burnerpad help'",
-			run:     commandErrorRun([]string{"--json"}, "", nil),
+			message: "a command is required; run 'burnerpad help'", expectedClasses: nil,
+			run: commandErrorRun([]string{"--json"}, "", nil),
 		},
 		{
 			name: "invalid option", exit: 2, code: "invalid_option",
-			message: "invalid or unsupported option",
-			run:     commandErrorRun([]string{"create", "--json", "--not-an-option"}, "", nil),
+			message: "invalid or unsupported option", expectedClasses: nil,
+			run: commandErrorRun([]string{"create", "--json", "--not-an-option"}, "", nil),
 		},
 		{
 			name: "invalid input", exit: 2, code: "invalid_input",
-			message: "create does not accept positional arguments",
-			run:     commandErrorRun([]string{"create", "--json", "unexpected"}, "", nil),
+			message: "create does not accept positional arguments", expectedClasses: nil,
+			run: commandErrorRun([]string{"create", "--json", "unexpected"}, "", nil),
 		},
 		{
 			name: "invalid credential source", exit: 2, code: "invalid_credential_source",
-			message: "passphrase files must be named and passphrase descriptors must be 3 or greater",
-			run: commandErrorRun([]string{"create", "--json", "--passphrase-file", "-"}, "plaintext", func(env *Env) {
+			message: "passphrase files must be named and passphrase descriptors must be 3 or greater", expectedClasses: nil,
+			run: commandErrorRun([]string{"create", "--json", "--passphrase-file", "-"}, "", func(env *Env) {
 				env.StdinPiped = true
 			}),
 		},
 		{
 			name: "local I/O failure", exit: 3, code: "local_io_failed",
-			message: "cannot read the ciphertext file",
-			run: func(t *testing.T) (int, string, string) {
+			message:         "cannot read the ciphertext file",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitiveFilesystemPath},
+			run: func(t *testing.T) diagnosticObservation {
 				t.Helper()
-				missing := filepath.Join(t.TempDir(), "missing")
-				return commandErrorRun([]string{
-					"decrypt", "--json", "--blob-file", missing, "--passphrase-file", phraseFile(t),
+				missing := filepath.Join(t.TempDir(), "diagnostic-missing-ciphertext-path-canary")
+				phrasePath := credentialFile(t, "diagnostic-missing-run-phrase-path-canary", contractPhrase+"\n")
+				observation := commandErrorRun([]string{
+					"decrypt", "--json", "--blob-file", missing, "--passphrase-file", phrasePath,
 				}, "", nil)(t)
+				observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveCorrectPhrase, contractPhrase)...)
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(missing)...)
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(phrasePath)...)
+				return observation
 			},
 		},
 		{
 			name: "secret unavailable", exit: 4, code: "secret_unavailable",
-			message: "the secret is unavailable",
-			run:     responseServer(http.StatusNotFound, `{}`),
+			message:         "the secret is unavailable",
+			expectedClasses: []sensitiveValueClass{sensitiveManagementToken, sensitiveIdentifier, sensitiveFilesystemPath},
+			run:             responseServer(http.StatusNotFound, `"diagnostic-secret-unavailable-response-canary"`),
 		},
 		{
 			name: "passphrase failed", exit: 5, code: "passphrase_failed",
-			message: "the passphrase did not open the secret",
-			run: decryptErrorRun(func() ([]byte, string) {
-				return []byte("plaintext"), "freeway faucet unnoticed energy emoticon elves enormous"
-			}),
+			message:         "the passphrase did not open the secret",
+			expectedClasses: []sensitiveValueClass{sensitiveWrongPhrase, sensitiveCiphertext, sensitiveFilesystemPath},
+			run: decryptErrorRun(
+				nil, contractPhrase, wrongPhraseCanary, false,
+			),
 		},
 		{
 			name: "plaintext invalid", exit: 5, code: "plaintext_invalid",
-			message: "the authenticated plaintext is not valid UTF-8 text",
-			run: decryptErrorRun(func() ([]byte, string) {
-				return []byte{0xff}, contractPhrase
-			}),
+			message:         "the authenticated plaintext is not valid UTF-8 text",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitivePlaintext, sensitiveCiphertext, sensitiveFilesystemPath},
+			run: decryptErrorRun(
+				append([]byte{0xff}, []byte(invalidPlaintextCanary)...), contractPhrase, contractPhrase, true,
+			),
 		},
 		{
 			name: "server rejected", exit: 6, code: "server_rejected",
-			message: "the server rejected the request",
-			run:     createResponse(http.StatusBadRequest, `{}`),
+			message:         "the server rejected the request",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitivePlaintext, sensitiveCiphertext, sensitiveFilesystemPath},
+			run:             createResponse(http.StatusBadRequest, `"diagnostic-create-rejected-response-canary"`),
 		},
 		{
 			name: "network unavailable", exit: 7, code: "network_unavailable",
-			message: "the server could not be reached",
-			run: func(t *testing.T) (int, string, string) {
+			message:         "the server could not be reached",
+			expectedClasses: []sensitiveValueClass{sensitiveManagementToken, sensitiveIdentifier, sensitiveFilesystemPath, sensitiveFullShareURL},
+			run: func(t *testing.T) diagnosticObservation {
 				t.Helper()
 				// The default client does not trust this test certificate, so the
 				// connection fails before request headers can be transmitted.
 				srv := httptest.NewTLSServer(http.NotFoundHandler())
 				t.Cleanup(srv.Close)
-				token := credentialFile(t, "token", contractToken+"\n")
-				env, stdout, _ := contractEnv([]string{
-					"burn", "--server", srv.URL, "--json", "--token-file", token, contractID,
+				tokenPath := credentialFile(t, "diagnostic-network-token-path-canary", contractToken+"\n")
+				shareURL := srv.URL + "/s/" + contractID
+				env, stdout, stderr := contractEnv([]string{
+					"burn", "--json", "--token-file", tokenPath, shareURL,
 				}, "")
-				return Run(env), stdout.String(), srv.URL
+				observation := diagnosticObservation{
+					exit: Run(env), stdout: stdout.String(), stderr: stderr.String(), server: srv.URL,
+					wantStderr: "burnerpad: warning: the share URL is now present in shell history\n" +
+						"burnerpad: server: " + srv.URL + "\n",
+					sensitive: []sensitiveValue{
+						{class: sensitiveManagementToken, value: contractToken},
+						{class: sensitiveIdentifier, value: contractID},
+						{class: sensitiveFullShareURL, value: shareURL},
+					},
+				}
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(tokenPath)...)
+				return observation
 			},
 		},
 		{
 			name: "rate limited", exit: 7, code: "rate_limited",
-			message:    "the server rate-limited the request",
-			retryAfter: &retryAfter,
-			run:        responseServer(http.StatusTooManyRequests, `{}`, retryAfter),
+			message:         "the server rate-limited the request",
+			retryAfter:      &retryAfter,
+			expectedClasses: []sensitiveValueClass{sensitiveManagementToken, sensitiveIdentifier, sensitiveFilesystemPath},
+			run:             responseServer(http.StatusTooManyRequests, `"diagnostic-rate-limited-response-canary"`, retryAfter),
 		},
 		{
 			name: "service unavailable", exit: 7, code: "service_unavailable",
-			message: "the server is temporarily unavailable",
-			run:     responseServer(http.StatusServiceUnavailable, `{}`),
+			message:         "the server is temporarily unavailable",
+			expectedClasses: []sensitiveValueClass{sensitiveManagementToken, sensitiveIdentifier, sensitiveFilesystemPath},
+			run:             responseServer(http.StatusServiceUnavailable, `"diagnostic-service-unavailable-response-canary"`),
 		},
 		{
 			name: "unsupported secret", exit: 8, code: "unsupported_secret",
-			message: "the ciphertext is not a supported Burnerpad passphrase secret",
-			run: func(t *testing.T) (int, string, string) {
+			message:         "the ciphertext is not a supported Burnerpad passphrase secret",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitiveCiphertext, sensitiveFilesystemPath},
+			run: func(t *testing.T) diagnosticObservation {
 				t.Helper()
-				path := filepath.Join(t.TempDir(), "truncated.blob")
-				if err := os.WriteFile(path, append(envelope.EncodeToBytes([]byte{0}), '\n'), 0o600); err != nil {
+				invalidBlob := []byte("diagnostic unsupported ciphertext canary")
+				encoded := string(envelope.EncodeToBytes(invalidBlob))
+				blobPath := filepath.Join(t.TempDir(), "diagnostic-unsupported-ciphertext-path-canary")
+				if err := os.WriteFile(blobPath, []byte(encoded+"\n"), 0o600); err != nil {
 					t.Fatal(err)
 				}
-				return commandErrorRun([]string{
-					"decrypt", "--json", "--blob-file", path, "--passphrase-file", phraseFile(t),
+				phrasePath := credentialFile(t, "diagnostic-unsupported-phrase-path-canary", contractPhrase+"\n")
+				observation := commandErrorRun([]string{
+					"decrypt", "--json", "--blob-file", blobPath, "--passphrase-file", phrasePath,
 				}, "", nil)(t)
+				observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveCorrectPhrase, contractPhrase)...)
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(blobPath)...)
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(phrasePath)...)
+				observation.sensitive = append(observation.sensitive,
+					sensitiveValue{class: sensitiveCiphertext, value: string(invalidBlob)},
+					sensitiveValue{class: sensitiveCiphertext, value: encoded},
+				)
+				return observation
 			},
 		},
 		{
 			name: "create outcome unknown", exit: 9, code: "create_outcome_unknown",
-			message: "the request may have changed server state, but its outcome could not be confirmed",
-			run:     createResponse(http.StatusOK, `{}`),
+			message:         "the request may have changed server state, but its outcome could not be confirmed",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitivePlaintext, sensitiveCiphertext, sensitiveFilesystemPath, sensitiveCompleteResponse},
+			run:             createResponse(http.StatusOK, `"diagnostic-create-unknown-response-canary"`),
 		},
 		{
 			name: "claim outcome unknown", exit: 9, code: "claim_outcome_unknown",
-			message: "the request may have changed server state, but its outcome could not be confirmed",
-			run: func(t *testing.T) (int, string, string) {
+			message:         "the request may have changed server state, but its outcome could not be confirmed",
+			expectedClasses: []sensitiveValueClass{sensitiveCorrectPhrase, sensitiveCiphertext, sensitiveFilesystemPath, sensitiveTruncatedResponse, sensitiveFullShareURL, sensitiveIdentifier},
+			run: func(t *testing.T) diagnosticObservation {
 				t.Helper()
-				srv, _ := contractResponseServer(t, http.StatusOK, `{}`)
-				env, stdout, _ := contractEnv([]string{
-					"reveal", "--json", "--passphrase-file", phraseFile(t), srv.URL + "/s/" + contractID,
+				validBlob := envelope.EncryptPassphrase([]byte(contractPhrase), []byte(claimPlaintextCanary))
+				encoded := string(envelope.EncodeToBytes(validBlob))
+				responseBody := fmt.Sprintf(`{"blob":%q,"unexpected":%q}`, encoded, truncatedResponseCanary)
+				var positive struct {
+					Blob string `json:"blob"`
+				}
+				decodeJSONErr := json.Unmarshal([]byte(responseBody), &positive)
+				decoded, decodeBlobErr := envelope.DecodeCanonical([]byte(positive.Blob))
+				opened, openErr := envelope.DecryptPassphrase(decoded, []byte(contractPhrase))
+				positiveOK := decodeJSONErr == nil && decodeBlobErr == nil && openErr == nil &&
+					bytes.Equal(opened, []byte(claimPlaintextCanary))
+				clear(decoded)
+				clear(opened)
+				if !positiveOK {
+					t.Fatal("claim truncation positive control did not form a valid current-contract response")
+				}
+
+				srv, served := recordedResponseServer(t, http.StatusOK, responseBody, "", 1)
+				phrasePath := credentialFile(t, "diagnostic-claim-phrase-path-canary", contractPhrase+"\n")
+				shareURL := srv.URL + "/s/" + contractID
+				env, stdout, stderr := contractEnv([]string{
+					"reveal", "--json", "--passphrase-file", phrasePath, shareURL,
 				}, "")
-				return Run(env), stdout.String(), srv.URL
+				observation := diagnosticObservation{
+					exit: Run(env), stdout: stdout.String(), stderr: stderr.String(), server: srv.URL,
+					wantStderr: "burnerpad: warning: the share URL is now present in shell history\n" +
+						"burnerpad: server: " + srv.URL + "\n",
+					sensitive: []sensitiveValue{
+						{class: sensitiveFullShareURL, value: shareURL},
+						{class: sensitiveIdentifier, value: contractID},
+						{class: sensitiveCiphertext, value: string(validBlob)},
+						{class: sensitiveCiphertext, value: encoded},
+						{class: sensitiveTruncatedResponse, value: responseBody},
+					},
+				}
+				observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveCorrectPhrase, contractPhrase)...)
+				observation.sensitive = append(observation.sensitive, diagnosticPathValues(phrasePath)...)
+				request := takeReceivedRequest(t, served, "claim")
+				wantPath := "/api/secrets/" + contractID + "/reveal"
+				if request.err != nil || request.method != http.MethodPost || request.path != wantPath ||
+					request.body != `{}` || request.responseBytes != len(responseBody) {
+					t.Fatal("claim truncation fixture did not observe the expected complete request and partial response")
+				}
+				return observation
 			},
 		},
 		{
 			name: "revoke outcome unknown", exit: 9, code: "revoke_outcome_unknown",
-			message: "the request may have changed server state, but its outcome could not be confirmed",
-			run:     responseServer(http.StatusOK, `{}`),
+			message:         "the request may have changed server state, but its outcome could not be confirmed",
+			expectedClasses: []sensitiveValueClass{sensitiveManagementToken, sensitiveIdentifier, sensitiveFilesystemPath, sensitiveCompleteResponse},
+			run:             responseServer(http.StatusOK, `"diagnostic-revoke-unknown-response-canary"`),
 		},
 		{
 			name: "internal failure", exit: 10, code: "internal",
-			message: "unexpected internal failure",
-			run: commandErrorRun([]string{"create", "--json", "unexpected"}, "", func(env *Env) {
-				env.Getenv = func(string) string { panic("test panic") }
-			}),
+			message: "unexpected internal failure", expectedClasses: nil,
+			run: func(t *testing.T) diagnosticObservation {
+				t.Helper()
+				observation := commandErrorRun([]string{"create", "--json", "unexpected"}, "", func(env *Env) {
+					env.Getenv = func(string) string { panic("test panic") }
+				})(t)
+				return observation
+			},
 		},
 	}
 
@@ -248,24 +487,73 @@ func TestCurrentJSONErrorVocabularyAndExitMapping(t *testing.T) {
 		return
 	}
 
+	seenSensitiveClasses := make(map[sensitiveValueClass]bool)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			exit, stdout, server := test.run(t)
-			if exit != test.exit {
-				t.Fatalf("exit=%d, want %d; stdout=%s", exit, test.exit, stdout)
+			observation := test.run(t)
+			combined := observation.stdout + observation.stderr
+			observedClasses := make(map[sensitiveValueClass]bool)
+			for index, sensitive := range observation.sensitive {
+				if sensitive.value == "" {
+					t.Fatalf("code=%s class=%s needle=%d is empty", test.code, sensitive.class, index)
+				}
+				if _, ok := expectedRealRunSensitiveValueClasses[sensitive.class]; !ok {
+					t.Fatalf("code=%s has unexpected sensitive class %s", test.code, sensitive.class)
+				}
+				observedClasses[sensitive.class] = true
+				seenSensitiveClasses[sensitive.class] = true
+				if strings.Contains(combined, sensitive.value) {
+					t.Fatalf("code=%s leaked class=%s needle=%d stdout_len=%d stderr_len=%d",
+						test.code, sensitive.class, index, len(observation.stdout), len(observation.stderr))
+				}
 			}
+
+			expectedClasses := make(map[sensitiveValueClass]bool)
+			for _, class := range test.expectedClasses {
+				if _, ok := expectedRealRunSensitiveValueClasses[class]; !ok {
+					t.Fatalf("code=%s expects unknown sensitive class %s", test.code, class)
+				}
+				if expectedClasses[class] {
+					t.Fatalf("code=%s repeats expected sensitive class %s", test.code, class)
+				}
+				expectedClasses[class] = true
+			}
+			for class := range observedClasses {
+				if !expectedClasses[class] {
+					t.Fatalf("code=%s observed undeclared sensitive class %s", test.code, class)
+				}
+			}
+			for class := range expectedClasses {
+				if !observedClasses[class] {
+					t.Fatalf("code=%s did not observe expected sensitive class %s", test.code, class)
+				}
+			}
+
 			want := fmt.Sprintf(`{"status":"error","code":%q,"message":%q`, test.code, test.message)
-			if server != "" {
-				want += fmt.Sprintf(`,"server":%q`, server)
+			if observation.server != "" {
+				want += fmt.Sprintf(`,"server":%q`, observation.server)
 			}
 			if test.retryAfter != nil {
 				want += fmt.Sprintf(`,"retry_after":%d`, *test.retryAfter)
 			}
 			want += "}\n"
-			if stdout != want {
-				t.Fatalf("stdout=%q, want exact ordered JSON %q", stdout, want)
+			stdoutMatch := observation.stdout == want
+			stderrMatch := observation.stderr == observation.wantStderr
+			if observation.exit != test.exit || !stdoutMatch || !stderrMatch {
+				t.Fatalf("code=%s exit=%d want_exit=%d stdout_match=%t stdout_len=%d stderr_match=%t stderr_len=%d",
+					test.code, observation.exit, test.exit, stdoutMatch, len(observation.stdout), stderrMatch, len(observation.stderr))
 			}
 		})
+	}
+	for class := range expectedRealRunSensitiveValueClasses {
+		if !seenSensitiveClasses[class] {
+			t.Errorf("real-Run table does not cover sensitive-value class %q", class)
+		}
+	}
+	for class := range seenSensitiveClasses {
+		if _, ok := expectedRealRunSensitiveValueClasses[class]; !ok {
+			t.Errorf("real-Run table covered unexpected sensitive-value class %q", class)
+		}
 	}
 }
 
@@ -432,30 +720,106 @@ func TestCurrentProcessCreateHumanHandoff(t *testing.T) {
 	})
 }
 
-func commandErrorRun(args []string, stdin string, configure func(*Env)) jsonErrorRunner {
-	return func(t *testing.T) (int, string, string) {
-		t.Helper()
-		env, stdout, _ := contractEnv(args, stdin)
-		if configure != nil {
-			configure(&env)
-		}
-		return Run(env), stdout.String(), ""
+func diagnosticPathValues(path string) []sensitiveValue {
+	return []sensitiveValue{
+		{class: sensitiveFilesystemPath, value: path},
+		{class: sensitiveFilesystemPath, value: filepath.Base(path)},
 	}
 }
 
-func decryptErrorRun(input func() ([]byte, string)) jsonErrorRunner {
-	return func(t *testing.T) (int, string, string) {
+func diagnosticPhraseValues(class sensitiveValueClass, phrase string) []sensitiveValue {
+	values := []sensitiveValue{{class: class, value: phrase}}
+	for _, word := range strings.Fields(phrase) {
+		values = append(values, sensitiveValue{class: class, value: word})
+	}
+	return values
+}
+
+func diagnosticResponseValues(class sensitiveValueClass, body string) []sensitiveValue {
+	return []sensitiveValue{{class: class, value: body}}
+}
+
+func recordedResponseServer(t *testing.T, status int, body, retryAfter string, extraContentLength int) (*httptest.Server, <-chan receivedRequest) {
+	t.Helper()
+	received := make(chan receivedRequest, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestBody, requestErr := io.ReadAll(r.Body)
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		if extraContentLength != 0 {
+			w.Header().Set("Content-Length", fmt.Sprint(len(body)+extraContentLength))
+			w.Header().Set("Connection", "close")
+		}
+		w.WriteHeader(status)
+		written, writeErr := io.WriteString(w, body)
+		if requestErr != nil {
+			writeErr = requestErr
+		} else if writeErr == nil && written != len(body) {
+			writeErr = fmt.Errorf("short fixture write")
+		}
+		received <- receivedRequest{
+			method: r.Method, path: r.URL.Path, body: string(requestBody),
+			responseBytes: written, err: writeErr,
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, received
+}
+
+func takeReceivedRequest(t *testing.T, received <-chan receivedRequest, operation string) receivedRequest {
+	t.Helper()
+	select {
+	case request := <-received:
+		return request
+	default:
+		t.Fatalf("%s request did not reach its response fixture", operation)
+		return receivedRequest{}
+	}
+}
+
+func commandErrorRun(args []string, stdin string, configure func(*Env)) jsonErrorRunner {
+	return func(t *testing.T) diagnosticObservation {
 		t.Helper()
-		plaintext, phrase := input()
-		blob := envelope.EncryptPassphrase([]byte(contractPhrase), plaintext)
-		path := filepath.Join(t.TempDir(), "secret.blob")
-		if err := os.WriteFile(path, append(envelope.EncodeToBytes(blob), '\n'), 0o600); err != nil {
+		env, stdout, stderr := contractEnv(args, stdin)
+		if configure != nil {
+			configure(&env)
+		}
+		return diagnosticObservation{exit: Run(env), stdout: stdout.String(), stderr: stderr.String()}
+	}
+}
+
+func decryptErrorRun(plaintext []byte, encryptionPhrase, suppliedPhrase string, authenticatedPlaintext bool) jsonErrorRunner {
+	return func(t *testing.T) diagnosticObservation {
+		t.Helper()
+		blob := envelope.EncryptPassphrase([]byte(encryptionPhrase), plaintext)
+		encoded := string(envelope.EncodeToBytes(blob))
+		blobPath := filepath.Join(t.TempDir(), "diagnostic-ciphertext-file-path-canary")
+		if err := os.WriteFile(blobPath, []byte(encoded+"\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		phrasePath := credentialFile(t, "phrase", phrase+"\n")
-		return commandErrorRun([]string{
-			"decrypt", "--json", "--blob-file", path, "--passphrase-file", phrasePath,
+		phrasePath := credentialFile(t, "diagnostic-decrypt-phrase-path-canary", suppliedPhrase+"\n")
+		observation := commandErrorRun([]string{
+			"decrypt", "--json", "--blob-file", blobPath, "--passphrase-file", phrasePath,
 		}, "", nil)(t)
+		if suppliedPhrase == encryptionPhrase {
+			observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveCorrectPhrase, encryptionPhrase)...)
+		} else {
+			observation.sensitive = append(observation.sensitive, diagnosticPhraseValues(sensitiveWrongPhrase, suppliedPhrase)...)
+		}
+		observation.sensitive = append(observation.sensitive, diagnosticPathValues(blobPath)...)
+		observation.sensitive = append(observation.sensitive, diagnosticPathValues(phrasePath)...)
+		observation.sensitive = append(observation.sensitive,
+			sensitiveValue{class: sensitiveCiphertext, value: string(blob)},
+			sensitiveValue{class: sensitiveCiphertext, value: encoded},
+		)
+		if authenticatedPlaintext {
+			observation.sensitive = append(observation.sensitive, sensitiveValue{class: sensitivePlaintext, value: string(plaintext)})
+			if len(plaintext) > 1 {
+				observation.sensitive = append(observation.sensitive, sensitiveValue{class: sensitivePlaintext, value: string(plaintext[1:])})
+			}
+		}
+		return observation
 	}
 }
 

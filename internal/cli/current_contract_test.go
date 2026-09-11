@@ -439,11 +439,12 @@ func TestCurrentProcessRevealRecoverySurvivesWrongPhrase(t *testing.T) {
 		w.Write([]byte(`{"blob":"` + string(envelope.EncodeToBytes(blob)) + `"}`))
 	}))
 	defer srv.Close()
-	wrong := credentialFile(t, "wrong-phrase", "freeway faucet unnoticed energy emoticon elves enormous\n")
-	recovery := filepath.Join(t.TempDir(), "claimed.blob")
+	const wrongPhrase = "freeway faucet unnoticed energy emoticon elves enormous"
+	wrong := credentialFile(t, "diagnostic-recovery-wrong-phrase-path-canary", wrongPhrase+"\n")
+	recovery := filepath.Join(t.TempDir(), "diagnostic-recovery-blob-path-canary")
 	e, stdout, stderr := contractEnv([]string{"reveal", "--json", "--passphrase-file", wrong, "--keep-blob", recovery, srv.URL + "/s/" + contractID}, "")
 	if code := Run(e); code != 5 {
-		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+		t.Fatalf("exit=%d stdout_len=%d stderr_len=%d", code, stdout.Len(), stderr.Len())
 	}
 	if requests.Load() != 1 {
 		t.Fatalf("requests=%d", requests.Load())
@@ -451,15 +452,22 @@ func TestCurrentProcessRevealRecoverySurvivesWrongPhrase(t *testing.T) {
 	wantRecovery := string(envelope.EncodeToBytes(blob)) + "\n"
 	got, err := os.ReadFile(recovery)
 	if err != nil || string(got) != wantRecovery {
-		t.Fatalf("recovery=%q err=%v", got, err)
+		t.Fatalf("recovery_read_error=%t recovery_match=%t recovery_len=%d", err != nil, string(got) == wantRecovery, len(got))
 	}
 	var result map[string]any
-	if json.Unmarshal(stdout.Bytes(), &result) != nil || result["code"] != "passphrase_failed" || result["server"] != srv.URL {
-		t.Fatalf("error JSON=%s", stdout)
+	decodeErr := json.Unmarshal(stdout.Bytes(), &result)
+	if decodeErr != nil || result["code"] != "passphrase_failed" || result["server"] != srv.URL {
+		t.Fatalf("error_json_valid=%t code_match=%t server_match=%t stdout_len=%d",
+			decodeErr == nil, result["code"] == "passphrase_failed", result["server"] == srv.URL, stdout.Len())
 	}
-	for _, secretValue := range []string{contractID, contractPhrase, "recover me", string(envelope.EncodeToBytes(blob))} {
+	needles := []string{
+		contractID, wrongPhrase, string(envelope.EncodeToBytes(blob)),
+		wrong, filepath.Base(wrong), recovery, filepath.Base(recovery),
+	}
+	needles = append(needles, strings.Fields(wrongPhrase)...)
+	for index, secretValue := range needles {
 		if strings.Contains(stdout.String()+stderr.String(), secretValue) {
-			t.Fatalf("diagnostic leaked secret material %q", secretValue)
+			t.Fatalf("diagnostic leaked recovery-sensitive needle=%d stdout_len=%d stderr_len=%d", index, stdout.Len(), stderr.Len())
 		}
 	}
 }
