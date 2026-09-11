@@ -3,6 +3,7 @@ package term
 import (
 	"bytes"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -91,5 +92,60 @@ func TestPlainPhraseWipesAcceptedAndRejectedLineBuffers(t *testing.T) {
 				t.Fatalf("%s line byte %d was not wiped", name, i)
 			}
 		}
+	}
+}
+
+func TestRejectedPhraseMaterialIsNotReported(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		rejected  rune
+		attempted string
+	}{
+		{name: "ASCII", rejected: '7', attempted: "wa7"},
+		{name: "Unicode", rejected: '☠', attempted: "wa☠"},
+	} {
+		t.Run("typed "+test.name, func(t *testing.T) {
+			machine := NewMachine(0)
+			machine.Handle(rn('w'))
+			machine.Handle(rn('a'))
+			out := machine.Handle(rn(test.rejected))
+			if !out.Bell || out.Buf != "wa" || out.Status != rejectedCharacterHint {
+				t.Fatalf("rejection = %+v", out)
+			}
+			if strings.Contains(out.Status, test.attempted) {
+				t.Fatalf("status disclosed rejected input %q: %q", test.attempted, out.Status)
+			}
+		})
+	}
+
+	machine := NewMachine(0)
+	machine.Handle(paste("apple"))
+	machine.Handle(rn('a'))
+	machine.Handle(rn('p'))
+	out := machine.Handle(rn('p'))
+	if !out.Bell || out.Status != rejectedCharacterHint || strings.Contains(out.Status, "app") {
+		t.Fatalf("committed-candidate rejection disclosed input: %+v", out)
+	}
+
+	for _, input := range []string{
+		"acrobat distinctive-private-canary cufflink",
+		"distinctive-private-canary distinctive-private-canary",
+	} {
+		out = NewMachine(0).Handle(paste(input))
+		if !out.Bell || strings.Contains(out.Status, "distinctive-private-canary") {
+			t.Fatalf("paste rejection disclosed input %q: %+v", input, out)
+		}
+	}
+
+	valid := "acrobat cufflink dresser osmosis riverboat tulip wolverine"
+	phrase, transcript, err := runPlain(t, "distinctive-private-canary\n"+valid+"\n\n", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if phrase != valid {
+		t.Fatalf("phrase=%q; want %q", phrase, valid)
+	}
+	if strings.Contains(transcript, "distinctive-private-canary") {
+		t.Fatalf("plain transcript disclosed rejected input: %q", transcript)
 	}
 }

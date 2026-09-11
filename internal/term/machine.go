@@ -155,9 +155,12 @@ func (m *Machine) ghost() string {
 //
 // Count-vs-example thresholds are pinned by the §10(c) transcript
 // ("126 words match", "10 match: academy accountant acetone …"); the
-// exclusion-empty and toggle-hint rules by B24 and the §7.2 Ctrl+O row.
+// toggle-hint rule by the §7.2 Ctrl+O row.
 
-const submitHint = "Enter submits — keep typing if the phrase was longer"
+const (
+	submitHint            = "Enter submits — keep typing if the phrase was longer"
+	rejectedCharacterHint = "character rejected: no available Burnerpad word matches"
+)
 
 func (m *Machine) matchStatus() string {
 	if len(m.buf) == 0 {
@@ -273,13 +276,7 @@ func (m *Machine) onRune(r rune) (bool, string) {
 		m.buf = append(m.buf, r)
 		return false, m.matchStatus()
 	}
-	// B24: with committed words excluded, candidates can be 0 while list
-	// words DO start with try (type "app" after committing "apple") — the
-	// "no word starts with" claim would be false there; distinguish it.
-	if lo, hi := prefixRange(m.words, try); hi-lo > 0 {
-		return true, fmt.Sprintf("only already-committed words start with %q", try)
-	}
-	return true, fmt.Sprintf("no word starts with %q", try)
+	return true, rejectedCharacterHint
 }
 
 func (m *Machine) onSpace() (bool, string) {

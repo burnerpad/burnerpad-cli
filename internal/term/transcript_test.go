@@ -16,7 +16,7 @@ import (
 //	word 6/7 ▸ … tup‸⟨perware⟩  slip: valid prefix of the WRONG word; nothing committed
 //	word 6/7 ▸ … tu‸         Backspace; ghost gone (tu- has 10 candidates)
 //	word 6/7 ▸ … tul‸⟨ip⟩ ␣  corrected; Space commits tulip
-//	word 7/7 ▸ … wa‸ + "x"   BEL, status: no word starts with "wax"; x never enters buf
+//	word 7/7 ▸ … wa‸ + "x"   BEL, generic rejection; x never enters buf
 //	word 7/7 ▸ … wol‸⟨verine⟩ ␣
 //	7 words · Enter submits — keep typing if the phrase was longer
 //	⏎  → decrypt
@@ -97,11 +97,11 @@ func TestTranscript10c(t *testing.T) {
 	}
 	m.Handle(kd(KindSpace))
 
-	// word 7: "wa" then "x" → BEL, status names "wax", x never enters buf
+	// word 7: "wa" then "x" → BEL, input-free status, x never enters buf
 	m.Handle(rn('w'))
 	m.Handle(rn('a'))
 	out = m.Handle(rn('x'))
-	if !out.Bell || out.Status != `no word starts with "wax"` || out.Buf != "wa" {
+	if !out.Bell || out.Status != rejectedCharacterHint || out.Buf != "wa" {
 		t.Fatalf(`reject: bell=%v status=%q buf=%q`, out.Bell, out.Status, out.Buf)
 	}
 
