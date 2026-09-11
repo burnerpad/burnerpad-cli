@@ -163,6 +163,69 @@ func TestCurrentProcessBurnReceipt(t *testing.T) {
 	if stdout.String() != want {
 		t.Fatalf("stdout = %s", stdout)
 	}
+	if strings.Contains(stderr.String(), "shell history") {
+		t.Fatalf("piped receipt produced an argv history warning: %s", stderr)
+	}
+}
+
+func TestCurrentProcessBurnWarnsOnlyForArgvShareURL(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.Method != http.MethodPost || r.URL.Path != "/api/secrets/"+contractID+"/burn" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		w.Write([]byte(`{"status":"burned"}`))
+	}))
+	defer srv.Close()
+	token := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(token, []byte(contractToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		name string
+		args []string
+		warn bool
+	}{
+		{name: "URL", args: []string{"burn", "--json", "--token-file", token, srv.URL + "/s/" + contractID}, warn: true},
+		{name: "bare ID", args: []string{"burn", "--server", srv.URL, "--json", "--token-file", token, contractID}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e, _, stderr := contractEnv(test.args, "")
+			if code := Run(e); code != 0 {
+				t.Fatalf("exit=%d stderr=%s", code, stderr)
+			}
+			got := strings.Contains(stderr.String(), "warning: the share URL is now present in shell history")
+			if got != test.warn {
+				t.Fatalf("history warning = %v, want %v; stderr=%s", got, test.warn, stderr)
+			}
+		})
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("requests=%d, want 2", got)
+	}
+}
+
+func TestCurrentProcessBurnHistoryWarningFailurePreventsRequest(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer srv.Close()
+	e, stdout, _ := contractEnv([]string{
+		"burn", "--json", "--token-file", filepath.Join(t.TempDir(), "missing"), srv.URL + "/s/" + contractID,
+	}, "")
+	e.Stderr = failingWriter{}
+	if code := Run(e); code != 3 {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("requests=%d, want 0", requests.Load())
+	}
+	if !strings.Contains(stdout.String(), `"message":"cannot write a required security warning"`) {
+		t.Fatalf("stdout=%s", stdout)
+	}
 }
 
 func TestCurrentProcessRejectsRetiredSurface(t *testing.T) {
