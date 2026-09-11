@@ -28,6 +28,8 @@ derived from the immutable release tag and never hardcoded in source.
 
 ### Changed
 
+- Accept only zero installer arguments or the exact `--verify-only` form; typos and extra arguments now fail
+  with usage before platform detection, download, or installation.
 - Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a
   decrypt operation during `create --ask`.
 - Generate Bash, Zsh, Fish, and PowerShell command/option vocabularies from the runtime flag schema; leading
