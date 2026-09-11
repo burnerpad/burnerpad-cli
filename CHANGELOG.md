@@ -30,6 +30,8 @@ derived from the immutable release tag and never hardcoded in source.
 
 - Limit version-one official binary distribution to immutable GitHub Release assets; external package
   repositories, registries, and container channels remain deferred until they are owned and verified.
+- Emit the EFF Short Wordlist #2 copyright and CC BY 3.0 attribution on stderr before `burnerpad words`
+  redistributes the exact list on stdout.
 - Accept only zero installer arguments or the exact `--verify-only` form; typos and extra arguments now fail
   with usage before platform detection, download, or installation.
 - Describe interactive phrase acceptance as submission in every command instead of incorrectly promising a

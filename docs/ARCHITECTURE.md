@@ -116,6 +116,10 @@ whitespace as separators, ASCII-lowercases accepted words, and joins them with o
 a word or its order, and it never accepts a free-form escape. Raw typed commits, bracketed paste, plain-line
 entry, and credential files/descriptors enforce that same word-count and whitespace grammar.
 
+`burnerpad words` validates that it received no arguments, writes the EFF copyright and CC BY 3.0
+attribution to stderr, and only then writes the exact 1,296-line canonical list to stdout. If attribution
+cannot be written, it emits no wordlist bytes.
+
 Every secret needs a unique phrase. Suite `0x02` does not authenticate the server-assigned ID, so phrase
 reuse would allow a malicious server to substitute another valid blob created under the same phrase. The
 generator makes a fresh random selection; supplied-phrase uniqueness is a caller responsibility.

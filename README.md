@@ -108,7 +108,7 @@ inconvenient.
 | `reveal` | Claim one blob exactly once, then decrypt and display it locally |
 | `burn` | Revoke a secret using its management token without reading it |
 | `decrypt` | Decrypt a previously preserved blob without network access |
-| `words` | Print the shared 1,296-word list |
+| `words` | Attribute the EFF list on stderr, then print its 1,296 words on stdout |
 | `completion` | Print completion for Bash, Zsh, Fish, or PowerShell |
 | `version` | Print build, crypto, wordlist, and server-contract identity |
 | `licenses` | Print embedded license and attribution notices |

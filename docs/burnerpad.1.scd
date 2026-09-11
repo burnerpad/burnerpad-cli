@@ -46,7 +46,11 @@ origin in its full share URL; an explicit *--server* is ignored with a warning.
 *decrypt*
 	Decrypt a canonical base64url recovery blob locally. This command creates no HTTP client.
 
-*words*, *completion*, *version*, *licenses*, *help*
+*words*
+	Write one EFF copyright and CC BY 3.0 attribution line to standard error, then print exactly 1,296
+	canonical words to standard output.
+
+*completion*, *version*, *licenses*, *help*
 	Print purpose-specific utility output. Completion supports bash, zsh, fish, and powershell.
 	*burnerpad help* _COMMAND_, *burnerpad* _COMMAND_ *--help*, and *burnerpad* _COMMAND_ *-h*
 	print identical command-specific help without executing the command.

@@ -29,7 +29,7 @@ This is not yet the smallest possible implementation, it does not fully satisfy 
 - [x] 6. Correct post-mutation HTTP outcome classification.
 - [x] 7. Enforce the advertised conformance-vector pin.
 - [x] 8. Repair deterministic release reproduction.
-- [ ] 9. Fix remaining completeness and UX defects.
+- [x] 9. Fix remaining completeness and UX defects.
 - [ ] 10. Remove dead and duplicated surface area.
 
 ## Critical and high findings
@@ -265,7 +265,13 @@ Finding 9 task ledger:
 - [x] 9.13 Enforce the protected credential-file ownership/type/mode/symlink contract.
 - [x] 9.14 Replace the predictable vector-sync temporary path.
 - [x] 9.15 Make all pre-release changelog, installer, documentation, and task claims truthful.
-- [ ] 9.16 Restore the documented wordlist attribution on stderr.
+- [x] 9.16 Restore the documented wordlist attribution on stderr.
+
+Remediation completed 2026-09-11: all sixteen completeness and UX defects
+above are resolved. Each item was implemented and regression-tested before it
+was checked off; the wordlist command now completes the final outstanding
+contract by writing the exact CC BY 3.0 attribution to stderr before emitting
+the 1,296-word list on stdout.
 
 ## Minimality assessment
 

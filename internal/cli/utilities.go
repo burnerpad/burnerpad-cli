@@ -10,6 +10,8 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
+const wordsAttribution = "burnerpad words: EFF Short Wordlist #2 — Copyright (C) Electronic Frontier Foundation — CC BY 3.0 — https://www.eff.org/dice"
+
 func utilityArgs(name string, positionals []string) error {
 	if len(positionals) != 0 {
 		return usage("invalid_input", name+" does not accept arguments")
@@ -20,6 +22,9 @@ func utilityArgs(name string, positionals []string) error {
 func runWords(a *application, positionals []string) error {
 	if err := utilityArgs("words", positionals); err != nil {
 		return err
+	}
+	if _, err := fmt.Fprintln(a.env.Stderr, wordsAttribution); err != nil {
+		return local("cannot write wordlist attribution")
 	}
 	if _, err := fmt.Fprintln(a.env.Stdout, strings.Join(wordlist.Words(), "\n")); err != nil {
 		return local("cannot write word list")
