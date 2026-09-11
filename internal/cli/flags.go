@@ -16,14 +16,22 @@ type globalFlags struct {
 }
 
 func registerNetworkFlags(fs *flag.FlagSet, g *globalFlags) {
-	fs.StringVar(&g.server, "server", "", "server origin")
-	fs.DurationVar(&g.timeout, "timeout", 12*time.Second, "request timeout")
+	fs.StringVar(&g.server, "server", "", "send requests to `ORIGIN`")
+	fs.DurationVar(&g.timeout, "timeout", 12*time.Second, "limit the whole operation to `DURATION`")
+}
+
+func registerJSONFlag(fs *flag.FlagSet, g *globalFlags) {
+	fs.BoolVar(&g.json, "json", false, "emit stable JSON output")
+}
+
+func registerTerminalPresentationFlags(fs *flag.FlagSet, g *globalFlags) {
+	fs.BoolVar(&g.plain, "plain", false, "use accessible line prompts")
+	fs.BoolVar(&g.noColor, "no-color", false, "disable color")
 }
 
 func registerPresentationFlags(fs *flag.FlagSet, g *globalFlags) {
-	fs.BoolVar(&g.json, "json", false, "JSON output")
-	fs.BoolVar(&g.plain, "plain", false, "accessible line prompts")
-	fs.BoolVar(&g.noColor, "no-color", false, "disable color")
+	registerJSONFlag(fs, g)
+	registerTerminalPresentationFlags(fs, g)
 }
 
 func resolveConfig(env Env, g globalFlags) config {
@@ -53,11 +61,11 @@ type createFlags struct {
 
 func registerCreate(fs *flag.FlagSet) *createFlags {
 	f := &createFlags{passphraseFD: -1}
-	fs.StringVar(&f.ttl, "ttl", "", "time to live")
-	fs.StringVar(&f.input, "input", "", "plaintext input file")
+	fs.StringVar(&f.ttl, "ttl", "", "request a lifetime of `DURATION`")
+	fs.StringVar(&f.input, "input", "", "read plaintext from `FILE`")
 	fs.BoolVar(&f.ask, "ask", false, "prompt for an existing passphrase")
-	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
-	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
+	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "read the passphrase from protected `FILE`")
+	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "read the passphrase from descriptor `FD`")
 	return f
 }
 
@@ -71,10 +79,10 @@ type revealFlags struct {
 func registerReveal(fs *flag.FlagSet) *revealFlags {
 	f := &revealFlags{passphraseFD: -1}
 	fs.BoolVar(&f.ask, "ask", false, "prompt for the passphrase")
-	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
-	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
-	fs.StringVar(&f.keepBlob, "keep-blob", "", "recovery ciphertext file")
-	fs.StringVar(&f.out, "out", "", "plaintext output file")
+	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "read the passphrase from protected `FILE`")
+	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "read the passphrase from descriptor `FD`")
+	fs.StringVar(&f.keepBlob, "keep-blob", "", "save recovery ciphertext to new `FILE`")
+	fs.StringVar(&f.out, "out", "", "write plaintext to new `FILE`")
 	return f
 }
 
@@ -85,8 +93,8 @@ type burnFlags struct {
 
 func registerBurn(fs *flag.FlagSet) *burnFlags {
 	f := &burnFlags{tokenFD: -1}
-	fs.StringVar(&f.tokenFile, "token-file", "", "management-token file")
-	fs.IntVar(&f.tokenFD, "token-fd", -1, "management-token file descriptor")
+	fs.StringVar(&f.tokenFile, "token-file", "", "read the management token from protected `FILE`")
+	fs.IntVar(&f.tokenFD, "token-fd", -1, "read the management token from descriptor `FD`")
 	return f
 }
 
@@ -100,11 +108,11 @@ type decryptFlags struct {
 
 func registerDecrypt(fs *flag.FlagSet) *decryptFlags {
 	f := &decryptFlags{passphraseFD: -1}
-	fs.StringVar(&f.blobFile, "blob-file", "", "canonical ciphertext file, or - for stdin")
+	fs.StringVar(&f.blobFile, "blob-file", "", "read canonical ciphertext from `FILE|-`")
 	fs.BoolVar(&f.ask, "ask", false, "prompt for the passphrase")
-	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "passphrase file")
-	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "passphrase file descriptor")
-	fs.StringVar(&f.out, "out", "", "plaintext output file")
+	fs.StringVar(&f.passphraseFile, "passphrase-file", "", "read the passphrase from protected `FILE`")
+	fs.IntVar(&f.passphraseFD, "passphrase-fd", -1, "read the passphrase from descriptor `FD`")
+	fs.StringVar(&f.out, "out", "", "write plaintext to new `FILE`")
 	return f
 }
 

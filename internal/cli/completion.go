@@ -6,42 +6,14 @@ import (
 	"strings"
 )
 
-type completionFlag struct {
-	name, description string
-	takesValue        bool
-	fileValue         bool
-}
-
 type completionCommand struct {
 	name, description string
-	flags             []completionFlag
+	flags             []commandOption
 }
 
 type completionSchema struct {
 	commands []completionCommand
-	leading  []completionFlag
-}
-
-type boolFlag interface {
-	IsBoolFlag() bool
-}
-
-func flagsForCompletion(fs *flag.FlagSet) []completionFlag {
-	var flags []completionFlag
-	fs.VisitAll(func(f *flag.Flag) {
-		isBool := false
-		if value, ok := f.Value.(boolFlag); ok {
-			isBool = value.IsBoolFlag()
-		}
-		usage := strings.ToLower(f.Usage)
-		flags = append(flags, completionFlag{
-			name:        "--" + f.Name,
-			description: f.Usage,
-			takesValue:  !isBool,
-			fileValue:   !isBool && strings.Contains(usage, "file") && !strings.Contains(usage, "descriptor"),
-		})
-	})
-	return flags
+	leading  []commandOption
 }
 
 func buildCompletionSchema() completionSchema {
@@ -50,21 +22,18 @@ func buildCompletionSchema() completionSchema {
 	var leadingGlobals globalFlags
 	registerNetworkFlags(leadingSet, &leadingGlobals)
 	registerPresentationFlags(leadingSet, &leadingGlobals)
-	schema.leading = flagsForCompletion(leadingSet)
+	schema.leading = optionsFromFlagSet(leadingSet)
 
 	for i := range commandSpecs {
 		spec := &commandSpecs[i]
-		fs := flag.NewFlagSet(spec.name, flag.ContinueOnError)
-		var globals globalFlags
-		registerCommandFlags(fs, spec, &globals)
 		schema.commands = append(schema.commands, completionCommand{
-			name: spec.name, description: spec.description, flags: flagsForCompletion(fs),
+			name: spec.name, description: spec.description, flags: optionsForCommand(spec),
 		})
 	}
 	return schema
 }
 
-func completionNames(flags []completionFlag) []string {
+func completionNames(flags []commandOption) []string {
 	out := make([]string, len(flags))
 	for i := range flags {
 		out[i] = flags[i].name
@@ -72,7 +41,7 @@ func completionNames(flags []completionFlag) []string {
 	return out
 }
 
-func completionValueNames(flags []completionFlag) []string {
+func completionValueNames(flags []commandOption) []string {
 	var out []string
 	for _, option := range flags {
 		if option.takesValue {
@@ -82,7 +51,7 @@ func completionValueNames(flags []completionFlag) []string {
 	return out
 }
 
-func completionFileValueNames(flags []completionFlag) []string {
+func completionFileValueNames(flags []commandOption) []string {
 	var out []string
 	for _, option := range flags {
 		if option.fileValue {
@@ -225,7 +194,7 @@ func fishQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "\\'") + "'"
 }
 
-func fishOption(commandCondition string, option completionFlag) string {
+func fishOption(commandCondition string, option commandOption) string {
 	value := ""
 	if option.takesValue {
 		value = " -r"

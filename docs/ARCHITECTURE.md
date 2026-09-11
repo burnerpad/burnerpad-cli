@@ -38,14 +38,17 @@ origin and canonical ID; it never receives an untrusted full share URL.
 ## Public commands
 
 The exact command set is `create`, `reveal`, `burn`, `decrypt`, `words`, `completion`, `version`, `licenses`,
-and `help`. Dispatch uses an exact switch. There are no aliases and a URL without `reveal` is an invalid
-command.
+and `help`. Dispatch recognizes only that ordered command schema. There are no aliases and a URL without
+`reveal` is an invalid command. `help COMMAND`, `COMMAND --help`, and `COMMAND -h` render the same
+command-specific help before parsing or execution. Root `--help`/`-h` print general help, and root
+`--version` prints version identity.
 
-Global controls are `--server`, `--timeout`, `--json`, `--plain`, and `--no-color`. `--plain`
-changes terminal mechanics, not plaintext safety: it uses the same escaped viewer rendition without raw
-mode, ANSI, or the alternate screen. The default deadline is 12 seconds. `--server` and
-`BURNERPAD_SERVER` apply only to create and bare-ID burn. The built-in server is
-`https://burnerpad.io`.
+Network operations accept `--timeout`; create and burn accept `--server`, while reveal accepts it only to
+warn that its URL is authoritative. All four operations accept `--json`. The terminal presentation controls
+`--plain` and `--no-color` apply only to create, reveal, and decrypt; burn has no colored or structured
+terminal UI for them to change. `--plain` changes terminal mechanics, not plaintext safety: it uses the same
+escaped viewer rendition without raw mode, ANSI, or the alternate screen. The default deadline is 12 seconds.
+`BURNERPAD_SERVER` applies only to create and bare-ID burn. The built-in server is `https://burnerpad.io`.
 
 ## Server selection
 

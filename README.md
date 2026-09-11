@@ -8,6 +8,41 @@ The CLI supports the current passphrase-only product: suite `0x02`, seven or mor
 from the shared EFF wordlist, and 26-character Crockford secret identifiers. It intentionally does
 not support pre-release fragment links, suite `0x01`, retired endpoints, or old short IDs.
 
+## Installation
+
+[GitHub Releases](https://github.com/burnerpad/burnerpad-cli/releases) is the only official binary
+distribution source. If that page has no release, Burnerpad has not shipped yet. The `install.sh` in this
+source tree is a refusing release template, not a usable installer.
+
+For the latest stable Linux or macOS release on amd64 or arm64, download the release-rendered,
+checksum-pinned script, read it, then have it verify the matching archive before installing:
+
+```sh
+curl --proto '=https' --proto-redir '=https' -fL -o burnerpad-install.sh \
+  https://github.com/burnerpad/burnerpad-cli/releases/latest/download/install.sh
+cat burnerpad-install.sh
+sh burnerpad-install.sh --verify-only
+sh burnerpad-install.sh
+```
+
+The script uses no `sudo` and installs to `~/.local/bin` by default. Set `BURNERPAD_INSTALL_DIR` to choose
+another directory. The script itself is the trust root for its embedded archive checksum. Prereleases must
+be downloaded from their exact tag page rather than the `latest` URL.
+
+Windows archives are available on the Releases page, but there is no Windows installer. Download the
+matching `.zip`, `SHA256SUMS`, and `SHA256SUMS.bundle`; perform
+[release verification](SECURITY.md#release-verification) with Cosign and `sha256sum` from Git Bash or WSL;
+then extract `burnerpad.exe` to a directory on `PATH`.
+
+Before the first release, a source checkout can be built for evaluation with Go 1.25 or newer:
+
+```sh
+git clone https://github.com/burnerpad/burnerpad-cli.git
+cd burnerpad-cli
+make build
+./burnerpad version
+```
+
 ## Quick start
 
 Create a secret using the default `https://burnerpad.io` server:
@@ -69,8 +104,8 @@ burnerpad create --json --passphrase-file phrase < secret.txt |
 | `licenses` | Print embedded license and attribution notices |
 | `help` | Print general or command-specific help |
 
-There are no command aliases and no implicit reveal. Run `burnerpad help <command>` for the exact
-options.
+There are no command aliases and no implicit reveal. Run `burnerpad help <command>`,
+`burnerpad <command> --help`, or `burnerpad <command> -h` for the exact options.
 
 ### Create
 

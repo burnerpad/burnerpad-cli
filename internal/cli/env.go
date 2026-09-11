@@ -4,8 +4,8 @@
 // self-contained commands (words/licenses/version/completion/help). The
 // network and local subcommands live in their own files.
 //
-// Everything user-visible here is specified by docs/ARCHITECTURE.md; fixed
-// strings are golden-tested and part of the compatibility promise.
+// User-visible behavior is specified by docs/ARCHITECTURE.md. Stable machine
+// formats and command-schema relationships are exercised as contracts.
 package cli
 
 import (

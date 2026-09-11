@@ -227,6 +227,9 @@ func dispatch(a *application) error {
 	if spec == nil {
 		return usage("invalid_command", "unknown command; run 'burnerpad help'")
 	}
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		return runHelp(a, []string{name})
+	}
 	if duplicateOption(args) {
 		return usage("invalid_option", "an option was supplied more than once")
 	}
