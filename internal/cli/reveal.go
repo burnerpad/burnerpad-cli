@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
-	"unicode/utf8"
 
 	"github.com/burnerpad/burnerpad-cli/envelope"
 	"github.com/burnerpad/burnerpad-cli/internal/api"
@@ -109,106 +107,7 @@ func runReveal(a *application, flags *revealFlags, positionals []string) error {
 		}
 		recovery.written = true
 	}
-	plaintext, err := envelope.DecryptPassphrase(blob, phrase)
-	for err == envelope.ErrAuthFail && a.canRetryPassphrase() {
-		secret.Wipe(phrase)
-		fmt.Fprintln(a.env.Stderr, "burnerpad: the phrase did not open it; try again locally")
-		phrase, err = a.readPassphrase(true, "", -1)
-		if err != nil {
-			break
-		}
-		plaintext, err = envelope.DecryptPassphrase(blob, phrase)
-	}
-	if err != nil {
-		if recovery == nil {
-			a.warn("the claimed ciphertext is being discarded; use --keep-blob before claiming when recovery may be needed")
-		}
-		return mapDecryptError(err, server)
-	}
-	defer secret.Wipe(plaintext)
-	if !utf8.Valid(plaintext) {
-		if recovery == nil {
-			a.warn("the claimed ciphertext is being discarded")
-		}
-		return commandError{exit: 5, code: "plaintext_invalid", message: "the authenticated plaintext is not valid UTF-8 text", server: server}
-	}
-	if err := a.deliverPlaintext(out, "revealed", server, plaintext); err != nil {
-		if recovery == nil {
-			a.warn("the claimed ciphertext is being discarded")
-		}
-		return attachServer(err, server)
-	}
-	return nil
-}
-
-func (a *application) prepareDestination(path string) (*reservedFile, error) {
-	var out *reservedFile
-	if path != "" {
-		var err error
-		out, err = reserve(path)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if !a.cfg.json && out == nil && a.env.StdoutTTY {
-		if _, err := a.terminal(); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
-}
-
-func (a *application) deliverPlaintext(out *reservedFile, status, server string, plaintext []byte) error {
-	// Once plaintext is ready—especially after a one-time claim—a signal that
-	// arrived during local decryption must not erase the destination as soon as
-	// it is entered. Complete that already-pending handoff; the viewer uses
-	// persistent plain output instead of waiting on the alternate screen. When
-	// delivery begins before cancellation, the Run context still cancels its
-	// interactive wait.
-	deliveryCtx := a.context()
-	pendingCancellation := deliveryCtx.Err() != nil
-	if pendingCancellation {
-		deliveryCtx = context.WithoutCancel(deliveryCtx)
-	}
-	switch {
-	case a.cfg.json:
-		if status == "revealed" {
-			if err := writeJSON(a.env.Stdout, revealResult{Status: status, Server: server, Plaintext: string(plaintext)}); err != nil {
-				return local("cannot write JSON output")
-			}
-		} else {
-			if err := writeJSON(a.env.Stdout, decryptResult{Status: status, Plaintext: string(plaintext)}); err != nil {
-				return local("cannot write JSON output")
-			}
-		}
-	case out != nil:
-		if err := out.write(plaintext); err != nil {
-			return err
-		}
-		out.written = true
-	case a.env.StdoutTTY:
-		t, err := a.terminal()
-		if err != nil {
-			return err
-		}
-		if err := term.ShowViewerContext(deliveryCtx, t, plaintext, term.ViewerOpts{
-			NoAlt: pendingCancellation || a.cfg.plain, NoColor: a.cfg.noColor,
-		}); err != nil {
-			if errors.Is(err, term.ErrInterrupted) || errors.Is(err, context.Canceled) {
-				return interrupted(err)
-			}
-			return localCause("cannot display plaintext", err)
-		}
-	default:
-		if _, err := a.env.Stdout.Write(plaintext); err != nil {
-			return local("cannot write plaintext")
-		}
-	}
-	return nil
-}
-
-func (r *reservedFile) discardUnlessWritten() {
-	if r != nil && !r.written {
-		r.discard()
-	}
+	return a.decryptAndDeliver(blob, phrase, plaintextDelivery{
+		out: out, server: server, claimedWithoutRecovery: recovery == nil, retry: a,
+	})
 }

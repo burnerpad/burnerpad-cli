@@ -137,6 +137,12 @@ type reservedFile struct {
 	written bool
 }
 
+func (r *reservedFile) discardUnlessWritten() {
+	if r != nil && !r.written {
+		r.discard()
+	}
+}
+
 func reserve(path string) (*reservedFile, error) {
 	if path == "" || path == "-" {
 		return nil, usage("invalid_option", "an output file must be a named path")
