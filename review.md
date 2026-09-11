@@ -272,7 +272,10 @@ Remediation completed 2026-09-11: all sixteen completeness and UX defects
 above are resolved. Each item was implemented and regression-tested before it
 was checked off; the wordlist command now completes the final outstanding
 contract by writing the exact CC BY 3.0 attribution to stderr before emitting
-the 1,296-word list on stdout.
+the 1,296-word list on stdout. The PR matrix then exposed a macOS-only 9.13
+defect: the raw, entitlement-gated ACL xattr probe has been replaced with one
+descriptor-only extended-stat call that returns both file metadata and actual
+ACL state.
 
 ## Minimality assessment
 
