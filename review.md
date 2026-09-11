@@ -291,7 +291,7 @@ Using a deep-module/deletion-test lens, `envelope`, `id`, `api`, and `secret` ar
 
 Finding 10 task ledger:
 
-- [ ] 10.1 Delete the unused spinner implementation and tests.
+- [x] 10.1 Delete the unused spinner implementation and tests.
 - [x] 10.2 Delete the unused seeded-retry subsystem (completed with 9.7).
 - [x] 10.3 Delete the inert `--quiet` configuration and interface (completed with 9.6).
 - [x] 10.4 Replace duplicated completion vocabularies with one command schema (completed with 9.8).
