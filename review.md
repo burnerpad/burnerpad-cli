@@ -409,6 +409,17 @@ container posture, and fail-closed cleanup. Full Go test, vet, race,
 Staticcheck, ShellCheck, actionlint, syntax, dependency/import/decode, and
 whitespace gates pass, and two independent final reviews found no defect.
 
+11.7 remains pending. The first post-merge scheduled run
+([34586307730](https://github.com/burnerpad/burnerpad-cli/actions/runs/34586307730))
+correctly exercised Lite `main` at `e77b409f2ceae2af365812633683714ad2a7d0cc`,
+but exposed an over-constrained interoperability test: it asserted reveal-input
+autofocus, a later Lite UX behavior unrelated to the browser/CLI protocol. The
+paste helper already focuses that input explicitly. A focused current-main
+reproduction failed three of three times only at the redundant focus assertion
+and passed three of three times after its removal while retaining creation,
+phrase entry, reveal, and exact-plaintext checks. A later successful
+`event=schedule` run is still required before checking 11.7.
+
 ## What is strong
 
 - AES-256-GCM, fresh salt/IV, PBKDF2-SHA256 at 600,000 rounds, and authenticated envelope metadata are implemented cleanly.
