@@ -80,7 +80,7 @@ func TestKeyTable(t *testing.T) {
 				{ev: rn('a'), expect: expect{buf: sp("a"), bell: bp(false)}},
 				{ev: rn('c'), expect: expect{buf: sp("ac"), bell: bp(false)}},
 				{ev: rn('s'), expect: expect{ // "acs" matches nothing
-					buf: sp("ac"), bell: bp(true), status: sp(`no word starts with "acs"`)}},
+					buf: sp("ac"), bell: bp(true), status: sp(rejectedCharacterHint)}},
 			},
 		},
 		{
@@ -100,13 +100,13 @@ func TestKeyTable(t *testing.T) {
 			name: "digits rejected in list-locked mode",
 			steps: append(typeRunes("wa"),
 				step{ev: rn('7'), expect: expect{buf: sp("wa"), bell: bp(true),
-					status: sp(`no word starts with "wa7"`)}}),
+					status: sp(rejectedCharacterHint)}}),
 		},
 		{
 			name: "punctuation (non-hyphen) rejected in list-locked mode",
 			steps: append(typeRunes("wa"),
 				step{ev: rn('!'), expect: expect{buf: sp("wa"), bell: bp(true),
-					status: sp(`no word starts with "wa!"`)}}),
+					status: sp(rejectedCharacterHint)}}),
 		},
 		{
 			name: "candidates==1 shows remainder as ghost",
@@ -159,7 +159,7 @@ func TestKeyTable(t *testing.T) {
 				step{ev: kd(KindTab), expect: expect{committed: []string{"aquamarine"}}},
 				step{ev: rn('a'), expect: expect{buf: sp("a")}},
 				step{ev: rn('q'), expect: expect{buf: sp("a"), bell: bp(true),
-					status: sp(`only already-committed words start with "aq"`)}}),
+					status: sp(rejectedCharacterHint)}}),
 		},
 		{
 			name: "Tab at the gate reports the same commit status Space does",
@@ -300,9 +300,9 @@ func TestKeyTable(t *testing.T) {
 		{
 			name: "rejections never advertise a free-form escape",
 			steps: append(typeRunes("wa"),
-				step{ev: rn('x'), expect: expect{bell: bp(true), status: sp(`no word starts with "wax"`)}},
+				step{ev: rn('x'), expect: expect{bell: bp(true), status: sp(rejectedCharacterHint)}},
 				step{ev: rn('x'), expect: expect{bell: bp(true),
-					status: sp(`no word starts with "wax"`)}}),
+					status: sp(rejectedCharacterHint)}}),
 		},
 		{
 			name: "committed words are excluded from candidates",
@@ -311,9 +311,9 @@ func TestKeyTable(t *testing.T) {
 				// "ap" now has 4 candidates, not 5
 				{ev: rn('a')}, {ev: rn('p'), expect: expect{
 					status: sp("4 match: apartment apnea apostrophe …")}},
-				// "app" only matched apple, which is committed → reject, honest message (B24)
+				// "app" only matched apple, which is committed, so it is unavailable.
 				{ev: rn('p'), expect: expect{buf: sp("ap"), bell: bp(true),
-					status: sp(`only already-committed words start with "app"`)}},
+					status: sp(rejectedCharacterHint)}},
 			},
 		},
 		{
