@@ -28,6 +28,8 @@ report within 72 hours and coordinate disclosure through GitHub Security Advisor
 - There is no built-in clipboard integration: unverifiable terminal clipboard protocols and PATH-resolved
   helper programs are outside the trusted destination boundary.
 - There is no config file, persistent state, telemetry, crash reporter, update check, or compatibility probe.
+- Pinned, scheduled-main, and release interoperability run the Linux real-client process tree behind
+  self-tested per-origin IPv4/IPv6 egress rules; any unexpected observed IP packet fails the gate.
 - Machine and human errors exclude URLs, IDs, phrases, tokens, blobs, plaintext, response bodies, and paths.
 
 Use a fresh phrase for every secret. Suite `0x02` does not bind the server-assigned ID into authenticated

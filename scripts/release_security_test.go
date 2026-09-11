@@ -702,6 +702,229 @@ func TestMakePassesValidMetadataAsOneLinkerArgument(t *testing.T) {
 	}
 }
 
+func TestLiteInteropWorkflowsUseSharedEgressHarness(t *testing.T) {
+	tests := []struct {
+		path    string
+		job     string
+		liteRef string
+		cliRef  string
+	}{
+		{
+			path:    "../.github/workflows/ci.yml",
+			job:     "pinned-lite-interop",
+			liteRef: "ref: ${{ steps.lite.outputs.revision }}",
+		},
+		{
+			path:    "../.github/workflows/lite-main-interop.yml",
+			job:     "interop",
+			liteRef: "ref: main",
+		},
+		{
+			path:    "../.github/workflows/publish-release.yml",
+			job:     "pinned-lite-interop",
+			liteRef: "ref: ${{ steps.lite.outputs.revision }}",
+			cliRef:  "ref: ${{ needs.validate-release-request.outputs.sha }}",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(filepath.Base(test.path), func(t *testing.T) {
+			raw, err := os.ReadFile(test.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workflow := stripYAMLComments(string(raw))
+			job := workflowJob(t, workflow, test.job)
+			if calls := strings.Count(job, "run: scripts/run-lite-interop.sh"); calls != 1 {
+				t.Errorf("%s/%s shared harness calls=%d, want 1", test.path, test.job, calls)
+			}
+			for _, want := range []string{test.liteRef, test.cliRef} {
+				if want != "" && !strings.Contains(job, want) {
+					t.Errorf("%s/%s does not contain %q", test.path, test.job, want)
+				}
+			}
+
+			last := -1
+			for _, marker := range []string{
+				"repository: burnerpad/burnerpad-lite",
+				"uses: actions/setup-go@",
+				"uses: erlef/setup-beam@",
+				"uses: actions/setup-node@",
+				"run: mix deps.get",
+				"run: npm ci",
+				"run: scripts/run-lite-interop.sh",
+			} {
+				index := strings.Index(job, marker)
+				if index <= last {
+					t.Errorf("%s/%s prerequisite %q is absent or out of order", test.path, test.job, marker)
+				}
+				last = index
+			}
+		})
+	}
+
+	paths, err := filepath.Glob("../.github/workflows/*.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	yamlPaths, err := filepath.Glob("../.github/workflows/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths = append(paths, yamlPaths...)
+	totalCalls := 0
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := stripYAMLComments(string(raw))
+		totalCalls += strings.Count(workflow, "run: scripts/run-lite-interop.sh")
+		for _, inline := range []string{
+			"BURNERPAD_EXPIRY_READY_FILE",
+			"mix run --no-compile --no-halt ../integration/lite_expiry_bootstrap.exs",
+			"test cli-interop.spec.mjs",
+		} {
+			if strings.Contains(workflow, inline) {
+				t.Errorf("workflow %s retains inline interop implementation %q", path, inline)
+			}
+		}
+	}
+	if totalCalls != 3 {
+		t.Errorf("shared Lite interop harness call count=%d, want 3", totalCalls)
+	}
+}
+
+func TestLiteInteropHarnessEnforcesDenyByDefaultEgress(t *testing.T) {
+	const path = "run-lite-interop.sh"
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("%s is not executable", path)
+	}
+	if result, err := exec.Command("bash", "-n", path).CombinedOutput(); err != nil {
+		t.Fatalf("%s is not valid Bash: %v\n%s", path, err, result)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(raw)
+
+	required := []string{
+		"#!/bin/bash\n",
+		"set -euo pipefail",
+		"readonly client_uid=60000",
+		"getent passwd \"$client_uid\"",
+		"/proc/[0-9]*/status",
+		"tcp tcp6 udp udp6 raw raw6 icmp icmp6",
+		"-I OUTPUT 1 -m owner --uid-owner \"$client_uid\"",
+		"sudo -n iptables -w 5 -A \"$chain4\" -o lo -d 127.0.0.1/32 -p tcp --dport \"$port\" -j RETURN",
+		"sudo -n iptables -w 5 -A \"$chain4\" -j REJECT",
+		"sudo -n ip6tables -w 5 -A \"$chain6\" -j REJECT",
+		"probe_rejected4 == 0 || probe_rejected6 == 0",
+		"allowed == 0",
+		"rejected4 != 0 || rejected6 != 0",
+		"-e HTTP_PROXY= -e HTTPS_PROXY= -e ALL_PROXY= -e NO_PROXY=",
+		"-e http_proxy= -e https_proxy= -e all_proxy= -e no_proxy=",
+		"readonly interop_spec=\"$repo_root/burnerpad-lite/test/browser/cli-interop.spec.mjs\"",
+		"if [[ -e $interop_spec || -L $interop_spec ]]",
+		"interop_spec_intent=1",
+		"cp -- \"$repo_root/integration/interop.spec.mjs\" \"$interop_spec\"",
+		"rm -f -- \"$interop_spec\"",
+		"-v \"$repo_root:/work:ro\"",
+		"--init --pull=never --network=host --userns=host --ipc=host",
+		"/work/burnerpad-lite/test/browser/node_modules/.bin/playwright",
+		"set +e\n  docker run",
+		"phase_status=$?\n  set -e",
+		"trap cleanup EXIT",
+		"docker container ls -a --format '{{.Names}}'",
+		"local containers_stopped=1",
+		"remove_container \"$container_name\" || containers_stopped=0",
+		"remove_container \"$probe_name\" || containers_stopped=0",
+		"if (( containers_stopped )); then",
+		"retaining the UID egress boundary because a client container may still be running",
+		"remove_firewall_family ip6tables",
+		"remove_firewall_family iptables",
+		"rmdir -- \"$run_dir\"",
+	}
+	for _, want := range required {
+		if !strings.Contains(script, want) {
+			t.Errorf("%s does not contain %q", path, want)
+		}
+	}
+	imagePattern := regexp.MustCompile(`(?m)^readonly playwright_image='[^'\n]+@sha256:[0-9a-f]{64}'$`)
+	if !imagePattern.MatchString(script) {
+		t.Errorf("%s does not pin the Playwright image by SHA-256 digest", path)
+	}
+	for _, forbidden := range []string{
+		"-j ACCEPT",
+		"--privileged",
+		"--cap-add",
+		"npx playwright",
+		"/work/burnerpad-lite/test/browser/cli-interop.spec.mjs:ro",
+		"--dport 4014",
+		"--dport 4015",
+	} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("%s contains unsafe or duplicate mechanism %q", path, forbidden)
+		}
+	}
+	if regexp.MustCompile(`(?m)^\s*sudo -n ip6tables .* -j RETURN\s*$`).MatchString(script) {
+		t.Errorf("%s permits IPv6 traffic", path)
+	}
+	if count := strings.Count(script, "-j RETURN"); count != 1 {
+		t.Errorf("%s IPv4 RETURN-rule count=%d, want 1", path, count)
+	}
+	for _, repeated := range []string{
+		"--pull=never --network=host --userns=host",
+		"--user \"$client_uid:$client_uid\" --cap-drop=ALL --security-opt=no-new-privileges",
+	} {
+		if count := strings.Count(script, repeated); count != 2 {
+			t.Errorf("%s occurrence count for %q=%d, want 2", path, repeated, count)
+		}
+	}
+	markers := []string{
+		"docker pull \"$playwright_image\"",
+		"go build -o \"$cli_bin\"",
+		"interop_spec_intent=1",
+		"cp -- \"$repo_root/integration/interop.spec.mjs\" \"$interop_spec\"",
+		"wait_until_ready http://127.0.0.1:4014/readyz",
+		"wait_until_ready http://127.0.0.1:4015/readyz",
+		"chain4_intent=1",
+		"sudo -n iptables -w 5 -N \"$chain4\"",
+		"jump4_intent=1",
+		"sudo -n iptables -w 5 -I OUTPUT 1",
+		"chain6_intent=1",
+		"sudo -n ip6tables -w 5 -N \"$chain6\"",
+		"jump6_intent=1",
+		"sudo -n ip6tables -w 5 -I OUTPUT 1",
+		"probe_intent=1",
+		"probe_rejected4=",
+		"configure_selected_port 4014",
+		"run_client_phase --grep-invert \"$expiry_test_title\"",
+		"main_status=$phase_status",
+		"audit_phase main 4014",
+		"if (( main_status != 0 )); then",
+		"exit \"$main_status\"",
+		"configure_selected_port 4015",
+		"run_client_phase --grep \"$expiry_test_title\"",
+		"expiry_status=$phase_status",
+		"audit_phase expiry 4015",
+		"exit \"$expiry_status\"",
+	}
+	last := -1
+	for _, marker := range markers {
+		index := strings.Index(script, marker)
+		if index <= last {
+			t.Errorf("%s phase marker %q is absent or out of order", path, marker)
+		}
+		last = index
+	}
+}
+
 func workflowJobs(t *testing.T, workflow string) map[string]string {
 	t.Helper()
 	_, body, ok := strings.Cut(workflow, "jobs:\n")
