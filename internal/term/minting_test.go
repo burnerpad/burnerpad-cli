@@ -8,14 +8,14 @@ import (
 const mintPhrase = "aardvark carrot embroidery hardhat lyrics porcupine suave"
 
 func TestPhraseMachineHasNoFreeformEscape(t *testing.T) {
-	m := NewMintingMachine(0)
+	m := newMachine(0)
 	for i := 0; i < 3; i++ {
-		out := m.Handle(kd(KindCtrlO))
-		if m.Mode() != ListLocked || !out.Bell {
-			t.Fatalf("press %d: mode=%v bell=%v", i+1, m.Mode(), out.Bell)
+		out := m.handle(kd(kindCtrlO))
+		if !out.bell {
+			t.Fatalf("press %d: bell=%v", i+1, out.bell)
 		}
-		if !strings.Contains(out.Status, "word list") {
-			t.Fatalf("press %d: status=%q", i+1, out.Status)
+		if !strings.Contains(out.status, "word list") {
+			t.Fatalf("press %d: status=%q", i+1, out.status)
 		}
 	}
 }

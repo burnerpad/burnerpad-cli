@@ -11,34 +11,34 @@ import (
 	"github.com/burnerpad/burnerpad-cli/internal/secret"
 )
 
-// EventKind classifies one decoded input gesture.
-type EventKind int
+// eventKind classifies one decoded input gesture.
+type eventKind int
 
 const (
-	KindRune EventKind = iota
-	KindSpace
-	KindTab
-	KindEnter
-	KindBackspace
-	KindCtrlC
-	KindCtrlD
-	KindCtrlW
-	KindCtrlU
-	KindCtrlO
-	KindPaste
-	KindInputTooLong
-	KindResize
-	KindIgnored
+	kindRune eventKind = iota
+	kindSpace
+	kindTab
+	kindEnter
+	kindBackspace
+	kindCtrlC
+	kindCtrlD
+	kindCtrlW
+	kindCtrlU
+	kindCtrlO
+	kindPaste
+	kindInputTooLong
+	kindResize
+	kindIgnored
 )
 
-// Event is one abstract input gesture. The decoder (below) owns byte
+// event is one abstract input gesture. The decoder (below) owns byte
 // decoding, bracketed-paste framing, and swallowing whole ESC/CSI sequences
 // (§7.2 "ESC-initiated sequences" row) — which is why no Escape/Arrow kind
 // exists in this vocabulary.
-type Event struct {
-	Kind  EventKind
-	R     rune   // KindRune only
-	Paste []byte // KindPaste only; may hold secret bytes — the consumer wipes it
+type event struct {
+	Kind  eventKind
+	R     rune   // kindRune only
+	Paste []byte // kindPaste only; may hold secret bytes — the consumer wipes it
 }
 
 // pasteEnd is the bracketed-paste terminator (mode 2004, §7.2 paste row).
@@ -64,7 +64,7 @@ const (
 	dPaste              // inside ESC[200~ … ESC[201~
 )
 
-// keyDecoder is the PURE incremental byte-stream → Event decoder. It does no
+// keyDecoder is the PURE incremental byte-stream → event decoder. It does no
 // I/O and keeps no clock: it consumes bytes and reports need-more via
 // pending(); the TTY reader owns the 50 ms inter-byte timeout and calls
 // flush() when it expires (§7.2 ESC row).
@@ -96,16 +96,16 @@ func (d *keyDecoder) pending() bool {
 
 // flush abandons any mid-flight sequence (inter-byte timeout or EOF): a lone
 // ESC, a partial CSI/SS3, a torn rune, or an unterminated paste all become
-// one KindIgnored.
-func (d *keyDecoder) flush() []Event {
+// one kindIgnored.
+func (d *keyDecoder) flush() []event {
 	if d.st == dGround {
 		return nil
 	}
 	// An abandoned paste (EOF mid-payload) never reaches a consumer, so the
-	// "consumer wipes Event.Paste" rule cannot cover it — wipe it here (§12).
+	// "consumer wipes event.Paste" rule cannot cover it — wipe it here (§12).
 	secret.Wipe(d.paste)
 	d.reset()
-	return []Event{{Kind: KindIgnored}}
+	return []event{{Kind: kindIgnored}}
 }
 
 func (d *keyDecoder) reset() {
@@ -120,7 +120,7 @@ func (d *keyDecoder) reset() {
 }
 
 // feed consumes one byte and returns zero or more decoded events.
-func (d *keyDecoder) feed(b byte) []Event {
+func (d *keyDecoder) feed(b byte) []event {
 	switch d.st {
 	case dGround:
 		return d.ground(b)
@@ -138,18 +138,18 @@ func (d *keyDecoder) feed(b byte) []Event {
 			// Alt-chord (ESC x) or stray dispatch byte: swallow the pair
 			// whole — per-byte handling would inject a literal rune.
 			d.st = dGround
-			return []Event{{Kind: KindIgnored}}
+			return []event{{Kind: kindIgnored}}
 		}
 	case dSS3:
 		// SS3 sequences (F1–F4, keypad) are exactly one byte long.
 		d.st = dGround
 		d.seqLen = 0
-		return []Event{{Kind: KindIgnored}}
+		return []event{{Kind: kindIgnored}}
 	case dCSI:
 		d.seqLen++
 		if d.seqLen > maxSeqLen {
 			d.reset()
-			return []Event{{Kind: KindIgnored}}
+			return []event{{Kind: kindIgnored}}
 		}
 		if b >= 0x40 && b <= 0x7e { // final byte
 			isPasteStart := b == '~' && string(d.csi) == "200"
@@ -161,7 +161,7 @@ func (d *keyDecoder) feed(b byte) []Event {
 			}
 			// Arrows, Home/End, Delete, F-keys, mouse, stray ESC[201~ —
 			// all ignored whole (this prompt has no cursor movement).
-			return []Event{{Kind: KindIgnored}}
+			return []event{{Kind: kindIgnored}}
 		}
 		d.csi = append(d.csi, b)
 		return nil
@@ -173,9 +173,9 @@ func (d *keyDecoder) feed(b byte) []Event {
 				over := d.pover
 				d.reset()
 				if over {
-					return []Event{{Kind: KindInputTooLong}}
+					return []event{{Kind: kindInputTooLong}}
 				}
-				return []Event{{Kind: KindPaste, Paste: p}}
+				return []event{{Kind: kindPaste, Paste: p}}
 			}
 			return nil
 		}
@@ -194,7 +194,7 @@ func (d *keyDecoder) feed(b byte) []Event {
 			d.u8 = d.u8[:0]
 			d.u8need = 0
 			d.st = dGround
-			return append([]Event{{Kind: KindIgnored}}, d.feed(b)...)
+			return append([]event{{Kind: kindIgnored}}, d.feed(b)...)
 		}
 		d.u8 = append(d.u8, b)
 		d.u8need--
@@ -205,10 +205,10 @@ func (d *keyDecoder) feed(b byte) []Event {
 		d.st = dGround
 		defer func() { d.u8 = d.u8[:0] }()
 		if !utf8.Valid(seq) { // overlong forms, surrogates
-			return []Event{{Kind: KindIgnored}}
+			return []event{{Kind: kindIgnored}}
 		}
 		r, _ := utf8.DecodeRune(seq)
-		return []Event{{Kind: KindRune, R: r}}
+		return []event{{Kind: kindRune, R: r}}
 	}
 	return nil
 }
@@ -226,8 +226,8 @@ func (d *keyDecoder) appendPaste(p []byte) {
 	d.paste = append(d.paste, p...)
 }
 
-func (d *keyDecoder) ground(b byte) []Event {
-	one := func(k EventKind) []Event { return []Event{{Kind: k}} }
+func (d *keyDecoder) ground(b byte) []event {
+	one := func(k eventKind) []event { return []event{{Kind: k}} }
 	if d.cr {
 		d.cr = false
 		if b == '\n' {
@@ -240,30 +240,30 @@ func (d *keyDecoder) ground(b byte) []Event {
 		d.seqLen = 1
 		return nil
 	case b == 0x03:
-		return one(KindCtrlC)
+		return one(kindCtrlC)
 	case b == 0x04:
-		return one(KindCtrlD)
+		return one(kindCtrlD)
 	case b == 0x08 || b == 0x7f:
-		return one(KindBackspace)
+		return one(kindBackspace)
 	case b == '\t':
-		return one(KindTab)
+		return one(kindTab)
 	case b == '\r':
 		d.cr = true
-		return one(KindEnter)
+		return one(kindEnter)
 	case b == '\n':
-		return one(KindEnter)
+		return one(kindEnter)
 	case b == 0x0f:
-		return one(KindCtrlO)
+		return one(kindCtrlO)
 	case b == 0x15:
-		return one(KindCtrlU)
+		return one(kindCtrlU)
 	case b == 0x17:
-		return one(KindCtrlW)
+		return one(kindCtrlW)
 	case b == ' ':
-		return one(KindSpace)
+		return one(kindSpace)
 	case b < 0x20:
-		return one(KindIgnored) // remaining C0 controls
+		return one(kindIgnored) // remaining C0 controls
 	case b < 0x80:
-		return []Event{{Kind: KindRune, R: rune(b)}}
+		return []event{{Kind: kindRune, R: rune(b)}}
 	case b >= 0xc2 && b <= 0xdf:
 		d.startRune(b, 1)
 		return nil
@@ -275,7 +275,7 @@ func (d *keyDecoder) ground(b byte) []Event {
 		return nil
 	default:
 		// 0x80–0xC1 and 0xF5–0xFF can never start a valid UTF-8 rune.
-		return one(KindIgnored)
+		return one(kindIgnored)
 	}
 }
 

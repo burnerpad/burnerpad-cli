@@ -7,30 +7,23 @@ import (
 	"github.com/burnerpad/burnerpad-cli/wordlist"
 )
 
-// Mode identifies the only supported passphrase-entry language.
-type Mode int
-
-const (
-	ListLocked Mode = iota // ghost-text autocomplete over the 1296-word list
-)
-
-// Output is the machine's complete post-event surface: everything a renderer
-// needs, nothing about how to draw it. Phrase is populated (fresh bytes the
-// caller owns and wipes) only once Done is true.
-type Output struct {
-	Committed []string // validated, distinct words (copy — safe to keep)
-	Buf       string   // current partial list word
-	Ghost     string   // unique-completion remainder; "" unless exactly 1 candidate
-	Status    string   // one-line status-zone content ("" = clear)
-	Bell      bool     // ring the terminal bell
-	Done      bool     // a complete phrase was accepted → attempt decrypt
-	Phrase    []byte   // canonical phrase bytes when Done; caller wipes
+// machineOutput is the machine's complete post-event surface: everything a
+// renderer needs, nothing about how to draw it. phrase is populated (fresh
+// bytes the caller owns and wipes) only once done is true.
+type machineOutput struct {
+	committed []string // validated, distinct words (copy — safe to keep)
+	buf       string   // current partial list word
+	ghost     string   // unique-completion remainder; "" unless exactly 1 candidate
+	status    string   // one-line status-zone content ("" = clear)
+	bell      bool     // ring the terminal bell
+	done      bool     // a complete phrase was accepted → attempt decrypt
+	phrase    []byte   // canonical phrase bytes when done; caller wipes
 }
 
-// Machine is the pure autocomplete state machine of §7.2 (as amended by
-// A9–A12) — no I/O, no terminal knowledge. State is exactly: committed
-// []word + buf + mode (§7.2 "State:").
-type Machine struct {
+// machine is the pure autocomplete state machine of §7.2 (as amended by
+// A9–A12) — no I/O, no terminal knowledge. State is exactly the committed
+// words, current buffer, submission gate, and completion state.
+type machine struct {
 	words     []string
 	minWords  int
 	committed []string
@@ -38,35 +31,21 @@ type Machine struct {
 	done      bool
 }
 
-// NewMachine returns a machine over the embedded word list. min is the
+// newMachine returns a machine over the embedded word list. min is the
 // committed-word gate for submission (§7.2: ≥ 7 for burnerpad phrases);
 // min ≤ 0 selects wordlist.PhraseWords.
-func NewMachine(min int) *Machine {
+func newMachine(min int) *machine {
 	if min <= 0 {
 		min = wordlist.PhraseWords
 	}
-	return &Machine{words: wordlist.Words(), minWords: min}
+	return &machine{words: wordlist.Words(), minWords: min}
 }
 
-// NewMintingMachine returns the canonical list-locked phrase machine.
-func NewMintingMachine(min int) *Machine {
-	return NewMachine(min)
-}
-
-// Committed returns a copy of the committed words.
-func (m *Machine) Committed() []string { return append([]string(nil), m.committed...) }
-
-// Buf returns the current partial word.
-func (m *Machine) Buf() string { return string(m.buf) }
-
-// Mode returns the current entry mode.
-func (m *Machine) Mode() Mode { return ListLocked }
-
-// Done reports whether a complete phrase has been accepted.
-func (m *Machine) Done() bool { return m.done }
+// committedCopy returns a copy of the committed words.
+func (m *machine) committedCopy() []string { return append([]string(nil), m.committed...) }
 
 // phraseBytes builds the canonical phrase as fresh bytes the caller wipes.
-func (m *Machine) phraseBytes() []byte {
+func (m *machine) phraseBytes() []byte {
 	var out []byte
 	for i, w := range m.committed {
 		if i > 0 {
@@ -81,7 +60,7 @@ func (m *Machine) phraseBytes() []byte {
 
 // committedWithPrefix counts committed words having prefix p. Committed words
 // are always list words, so they fall inside prefixRange(p) when prefixed.
-func (m *Machine) committedWithPrefix(p string) int {
+func (m *machine) committedWithPrefix(p string) int {
 	n := 0
 	for _, w := range m.committed {
 		if strings.HasPrefix(w, p) {
@@ -91,7 +70,7 @@ func (m *Machine) committedWithPrefix(p string) int {
 	return n
 }
 
-func (m *Machine) isCommitted(w string) bool {
+func (m *machine) isCommitted(w string) bool {
 	for _, c := range m.committed {
 		if c == w {
 			return true
@@ -103,13 +82,13 @@ func (m *Machine) isCommitted(w string) bool {
 // candCount is |{list words with prefix p}| minus already-committed ones
 // (§7.2 "Candidates = list words with prefix buf, excluding already-committed
 // words").
-func (m *Machine) candCount(p string) int {
+func (m *machine) candCount(p string) int {
 	lo, hi := prefixRange(m.words, p)
 	return (hi - lo) - m.committedWithPrefix(p)
 }
 
 // firstCandidates returns up to k candidates in list order.
-func (m *Machine) firstCandidates(p string, k int) []string {
+func (m *machine) firstCandidates(p string, k int) []string {
 	lo, hi := prefixRange(m.words, p)
 	out := make([]string, 0, k)
 	for i := lo; i < hi && len(out) < k; i++ {
@@ -122,7 +101,7 @@ func (m *Machine) firstCandidates(p string, k int) []string {
 
 // lcpOfCandidates returns the longest common prefix of the candidate set
 // (which necessarily extends p). Empty candidate set → p unchanged.
-func (m *Machine) lcpOfCandidates(p string) string {
+func (m *machine) lcpOfCandidates(p string) string {
 	cs := m.firstCandidates(p, m.candCount(p))
 	if len(cs) == 0 {
 		return p
@@ -139,7 +118,7 @@ func (m *Machine) lcpOfCandidates(p string) string {
 }
 
 // ghost returns the unique-completion remainder for the current buf.
-func (m *Machine) ghost() string {
+func (m *machine) ghost() string {
 	if len(m.buf) == 0 {
 		return ""
 	}
@@ -162,7 +141,7 @@ const (
 	rejectedCharacterHint = "character rejected: no available Burnerpad word matches"
 )
 
-func (m *Machine) matchStatus() string {
+func (m *machine) matchStatus() string {
 	if len(m.buf) == 0 {
 		return ""
 	}
@@ -182,7 +161,7 @@ func (m *Machine) matchStatus() string {
 	}
 }
 
-func (m *Machine) ambiguousStatus() string {
+func (m *machine) ambiguousStatus() string {
 	n := m.candCount(string(m.buf))
 	ex := m.firstCandidates(string(m.buf), 5)
 	s := "still ambiguous: " + strings.Join(ex, " ")
@@ -193,14 +172,14 @@ func (m *Machine) ambiguousStatus() string {
 }
 
 // needMoreStatus is the below-gate Enter status.
-func (m *Machine) needMoreStatus() string {
+func (m *machine) needMoreStatus() string {
 	return fmt.Sprintf("%d/%d — need at least %d words",
 		len(m.committed), m.minWords, m.minWords)
 }
 
 // commit appends w, clears buf, and returns the post-commit status
 // (committed-count form, A11).
-func (m *Machine) commit(w string) (bool, string) {
+func (m *machine) commit(w string) (bool, string) {
 	if len(m.committed) >= wordlist.MaxPhraseWords {
 		return true, interactiveWordsMessage(interactiveWordsTooMany)
 	}
@@ -214,54 +193,54 @@ func (m *Machine) commit(w string) (bool, string) {
 
 // --- event handling ------------------------------------------------------
 
-// Handle applies one event and returns the complete resulting surface.
-// KindCtrlC, KindCtrlD, and KindIgnored are no-ops here: interruption and
+// handle applies one event and returns the complete resulting surface.
+// kindCtrlC, kindCtrlD, and kindIgnored are no-ops here: interruption and
 // EOF are flow control, owned by the prompt loop, not phrase state.
-func (m *Machine) Handle(e Event) Output {
+func (m *machine) handle(e event) machineOutput {
 	var bell bool
 	var status string
 	switch e.Kind {
-	case KindRune:
+	case kindRune:
 		bell, status = m.onRune(e.R)
-	case KindSpace:
+	case kindSpace:
 		bell, status = m.onSpace()
-	case KindTab:
+	case kindTab:
 		bell, status = m.onTab()
-	case KindEnter:
+	case kindEnter:
 		bell, status = m.onEnter()
-	case KindBackspace:
+	case kindBackspace:
 		bell, status = m.onBackspace()
-	case KindCtrlW:
+	case kindCtrlW:
 		if len(m.buf) > 0 {
 			m.buf = m.buf[:0]
 		} else if n := len(m.committed); n > 0 {
 			// "if already empty, delete the last committed word entirely"
 			m.committed = m.committed[:n-1]
 		}
-	case KindCtrlU:
+	case kindCtrlU:
 		m.buf = m.buf[:0] // "clear buf (committed words untouched)"
-	case KindCtrlO:
+	case kindCtrlO:
 		bell, status = m.onCtrlO()
-	case KindPaste:
+	case kindPaste:
 		bell, status = m.onPaste(e.Paste)
-	case KindInputTooLong:
+	case kindInputTooLong:
 		bell, status = true, "paste rejected: input is too long"
 	}
-	out := Output{
-		Committed: m.Committed(),
-		Buf:       string(m.buf),
-		Ghost:     m.ghost(),
-		Status:    status,
-		Bell:      bell,
-		Done:      m.done,
+	out := machineOutput{
+		committed: m.committedCopy(),
+		buf:       string(m.buf),
+		ghost:     m.ghost(),
+		status:    status,
+		bell:      bell,
+		done:      m.done,
 	}
 	if m.done {
-		out.Phrase = m.phraseBytes()
+		out.phrase = m.phraseBytes()
 	}
 	return out
 }
 
-func (m *Machine) onRune(r rune) (bool, string) {
+func (m *machine) onRune(r rune) (bool, string) {
 	if r < ' ' || r == 0x7f {
 		return false, "" // control bytes never reach the buffer
 	}
@@ -279,7 +258,7 @@ func (m *Machine) onRune(r rune) (bool, string) {
 	return true, rejectedCharacterHint
 }
 
-func (m *Machine) onSpace() (bool, string) {
+func (m *machine) onSpace() (bool, string) {
 	if len(m.buf) == 0 {
 		return false, "" // "Empty buf → ignored"
 	}
@@ -290,7 +269,7 @@ func (m *Machine) onSpace() (bool, string) {
 	return true, m.ambiguousStatus()
 }
 
-func (m *Machine) onTab() (bool, string) {
+func (m *machine) onTab() (bool, string) {
 	if len(m.buf) == 0 {
 		return false, ""
 	}
@@ -314,7 +293,7 @@ func (m *Machine) onTab() (bool, string) {
 // with an empty buf and committed ≥ min SUBMITS. Commit-and-submit never
 // share a keystroke — the gesture that gates the claim request is always
 // deliberate.
-func (m *Machine) onEnter() (bool, string) {
+func (m *machine) onEnter() (bool, string) {
 	if len(m.buf) > 0 {
 		p := string(m.buf)
 		if m.candCount(p) != 1 {
@@ -336,7 +315,7 @@ func (m *Machine) onEnter() (bool, string) {
 	return false, m.needMoreStatus()
 }
 
-func (m *Machine) onBackspace() (bool, string) {
+func (m *machine) onBackspace() (bool, string) {
 	if len(m.buf) > 0 {
 		m.buf = m.buf[:len(m.buf)-1]
 		return false, m.matchStatus()
@@ -352,7 +331,7 @@ func (m *Machine) onBackspace() (bool, string) {
 }
 
 // onCtrlO refuses the retired free-form escape without changing state.
-func (m *Machine) onCtrlO() (bool, string) {
+func (m *machine) onCtrlO() (bool, string) {
 	return true, "every passphrase word must be on the Burnerpad word list"
 }
 
@@ -360,7 +339,7 @@ func (m *Machine) onCtrlO() (bool, string) {
 // ASCII-lowercase, split on ASCII whitespace runs, every token ∈ list ∧ distinct ∧ not
 // already committed; all-or-nothing; a partial buf is left untouched; paste
 // never submits.
-func (m *Machine) onPaste(text []byte) (bool, string) {
+func (m *machine) onPaste(text []byte) (bool, string) {
 	tokens, issue := parseInteractiveWords(text, m.committed)
 	if issue != interactiveWordsOK {
 		return true, "paste rejected: " + interactiveWordsMessage(issue)

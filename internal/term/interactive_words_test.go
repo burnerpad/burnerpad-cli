@@ -43,11 +43,11 @@ func TestInteractiveWordsRejectOversizedPasteBeforeParsing(t *testing.T) {
 	if parsed, issue := parseInteractiveWords(input, nil); issue != interactiveWordsTooLong || parsed != nil {
 		t.Fatalf("parsed=%v issue=%v, want too long", parsed, issue)
 	}
-	m := NewMachine(0)
-	m.Handle(rn('t'))
-	m.Handle(rn('u'))
-	out := m.Handle(Event{Kind: KindInputTooLong})
-	if !out.Bell || out.Buf != "tu" || len(out.Committed) != 0 || out.Status != "paste rejected: input is too long" {
+	m := newMachine(0)
+	m.handle(rn('t'))
+	m.handle(rn('u'))
+	out := m.handle(event{Kind: kindInputTooLong})
+	if !out.bell || out.buf != "tu" || len(out.committed) != 0 || out.status != "paste rejected: input is too long" {
 		t.Fatalf("overflow event mutated machine: %+v", out)
 	}
 }
@@ -74,27 +74,27 @@ func TestMachineRejectsWord65AtomicallyForPasteAndTypedCommit(t *testing.T) {
 	words := wordlist.Words()
 	first64 := strings.Join(words[:wordlist.MaxPhraseWords], " ")
 
-	pasted := NewMachine(0)
-	out := pasted.Handle(paste(first64))
-	if out.Bell || len(out.Committed) != wordlist.MaxPhraseWords {
-		t.Fatalf("64-word paste: bell=%v committed=%d", out.Bell, len(out.Committed))
+	pasted := newMachine(0)
+	out := pasted.handle(paste(first64))
+	if out.bell || len(out.committed) != wordlist.MaxPhraseWords {
+		t.Fatalf("64-word paste: bell=%v committed=%d", out.bell, len(out.committed))
 	}
-	out = pasted.Handle(paste(words[wordlist.MaxPhraseWords]))
-	if !out.Bell || len(out.Committed) != wordlist.MaxPhraseWords || out.Status != "paste rejected: passphrases contain at most 64 words" {
+	out = pasted.handle(paste(words[wordlist.MaxPhraseWords]))
+	if !out.bell || len(out.committed) != wordlist.MaxPhraseWords || out.status != "paste rejected: passphrases contain at most 64 words" {
 		t.Fatalf("65th pasted word: %+v", out)
 	}
 
-	typed := NewMachine(0)
-	typed.Handle(paste(first64))
+	typed := newMachine(0)
+	typed.handle(paste(first64))
 	for _, r := range words[wordlist.MaxPhraseWords] {
-		out = typed.Handle(rn(r))
-		if out.Bell {
+		out = typed.handle(rn(r))
+		if out.bell {
 			t.Fatalf("typing word 65 rejected before commit: %+v", out)
 		}
 	}
-	out = typed.Handle(kd(KindSpace))
-	if !out.Bell || len(out.Committed) != wordlist.MaxPhraseWords || out.Buf != words[wordlist.MaxPhraseWords] ||
-		out.Status != "passphrases contain at most 64 words" {
+	out = typed.handle(kd(kindSpace))
+	if !out.bell || len(out.committed) != wordlist.MaxPhraseWords || out.buf != words[wordlist.MaxPhraseWords] ||
+		out.status != "passphrases contain at most 64 words" {
 		t.Fatalf("65th typed commit: %+v", out)
 	}
 }

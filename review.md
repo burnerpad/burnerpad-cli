@@ -296,7 +296,7 @@ Finding 10 task ledger:
 - [x] 10.3 Delete the inert `--quiet` configuration and interface (completed with 9.6).
 - [x] 10.4 Replace duplicated completion vocabularies with one command schema (completed with 9.8).
 - [x] 10.5 Share reveal/decrypt authentication, retry, validation, and delivery flow.
-- [ ] 10.6 Remove test-only exported terminal interfaces and wrappers.
+- [x] 10.6 Remove test-only exported terminal interfaces and wrappers.
 - [ ] 10.7 Remove stale completed planning documents and the obsolete prototype.
 
 ## What is strong
