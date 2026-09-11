@@ -111,7 +111,8 @@ still prevents reuse of its tag name.
    release commit (`ci` + release gate).
 2. ⚙ `spec-drift` green as a direct release dependency — vendored SPEC/vectors/wordlist match the pinned
    upstream (`.github/workflows/spec-drift.yml`).
-3. ⚙ Pinned real-Lite interoperability green in all three official-client directions.
+3. ⚙ Pinned real-Lite interoperability green in all three official-client directions, all three Crockford
+   aliases, and the real Store expiry path.
 4. **Manual—required before release:** demonstrate the **no-phone-home invariant**—zero application egress
    to any host other than the selected API host across the matrix—and record the evidence. The repository
    does not yet enforce this gate in CI.
