@@ -76,7 +76,7 @@ func TestPlainPhraseWipesAcceptedAndRejectedLineBuffers(t *testing.T) {
 	accepted := []byte("acrobat cufflink dresser osmosis riverboat tulip wolverine")
 	lines := [][]byte{rejected, accepted, {}}
 	next := 0
-	phrase, err := readPhrasePlainLines(io.Discard, 7, nil, func() ([]byte, error) {
+	phrase, err := readPhrasePlainLines(io.Discard, 7, func() ([]byte, error) {
 		line := lines[next]
 		next++
 		return line, nil

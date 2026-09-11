@@ -327,19 +327,15 @@ func (t *TTY) startPump() {
 
 // PhraseOpts configures ReadPhrase.
 type PhraseOpts struct {
-	Min     int      // committed-word gate; ≤ 0 means wordlist.PhraseWords
-	Plain   bool     // §7.6 line mode: no raw mode, no ANSI
-	NoColor bool     // strip SGR (interaction intact)
-	Seed    []string // §7.3 retry: words to start committed — ≥ Min distinct list words (SeedWords), else ignored
-
+	Min     int  // committed-word gate; ≤ 0 means wordlist.PhraseWords
+	Plain   bool // §7.6 line mode: no raw mode, no ANSI
+	NoColor bool // strip SGR (interaction intact)
 }
 
 // ReadPhrase runs list-locked autocomplete with ghost text and bracketed
 // paste, or the accessible plain line mode, and returns canonical phrase
 // bytes. ErrInterrupted is returned on Ctrl+C or EOF.
 // Raw-mode failure (legacy conhost, no VT) falls back to plain per §7.6.
-// A valid Seed (§7.3 wrong-passphrase retry) starts the prompt with those
-// words already committed — kept-words status, Backspace steps into them.
 func ReadPhrase(t *TTY, o PhraseOpts) (*secret.Buffer, error) {
 	return ReadPhraseContext(context.Background(), t, o)
 }
@@ -355,35 +351,22 @@ func ReadPhraseContext(ctx context.Context, t *TTY, o PhraseOpts) (*secret.Buffe
 		min = wordlist.PhraseWords
 	}
 	if o.Plain {
-		return readPhrasePlainContext(ctx, t, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min)
 	}
 	if w, _ := t.Size(); w < narrowWidth {
-		return readPhrasePlainContext(ctx, t, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min)
 	}
 	restore, err := t.MakeRaw()
 	if err != nil {
-		return readPhrasePlainContext(ctx, t, min, o.Seed)
+		return readPhrasePlainContext(ctx, t, min)
 	}
 	defer restore()
 
 	m := NewMintingMachine(min)
 	cur := Output{}
-	if len(o.Seed) > 0 {
-		if out, ok := m.Seed(o.Seed); ok {
-			cur = out // §7.3: the retry keeps the committed words
-		}
-	}
-	if !m.SeededIntact() {
-		// First entry gets the how-to line; a §7.3 seeded retry repaints the
-		// prompt directly under the three-line auth-fail copy instead, exactly
-		// as the doc's block shows.
-		io.WriteString(t.out, "Passphrase — type each word; Space or Tab commits it once it's unambiguous.\r\n")
-	}
+	io.WriteString(t.out, "Passphrase — type each word; Space or Tab commits it once it's unambiguous.\r\n")
 	paint := func() {
 		label := promptLabel(len(cur.Committed), min)
-		if m.SeededIntact() {
-			label = seededLabel(len(cur.Committed)) // §7.3: `word 7/7 ▸`
-		}
 		paintPrompt(t, promptView{label: label, out: cur, noColor: o.NoColor})
 	}
 	paint()

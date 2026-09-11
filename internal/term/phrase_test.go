@@ -164,30 +164,6 @@ func TestReadPhraseExplicitPlain(t *testing.T) {
 	}
 }
 
-// PhraseOpts.Seed (§7.3 retry) flows through ReadPhrase into the plain path:
-// the kept words are echoed and an empty line resubmits them.
-func TestReadPhraseSeedReachesPlain(t *testing.T) {
-	seed := strings.Split("acrobat cufflink dresser osmosis riverboat tulip wolverine", " ")
-	tty, inW, outR := pipeTTY(t)
-	go func() {
-		io.WriteString(inW, "\n")
-		inW.Close()
-	}()
-	buf, err := ReadPhrase(tty, PhraseOpts{Plain: true, Seed: seed})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer buf.Wipe()
-	if got := string(buf.Bytes()); got != "acrobat cufflink dresser osmosis riverboat tulip wolverine" {
-		t.Fatalf("phrase = %q", got)
-	}
-	tty.out.Close()
-	transcript, _ := io.ReadAll(outR)
-	if !strings.Contains(string(transcript), "7 words kept: acrobat cufflink dresser osmosis riverboat tulip wolverine") {
-		t.Fatalf("kept-words echo missing: %q", transcript)
-	}
-}
-
 func TestReadPhrasePlainInterrupt(t *testing.T) {
 	tty, inW, _ := pipeTTY(t)
 	inW.Close() // immediate EOF at the prompt

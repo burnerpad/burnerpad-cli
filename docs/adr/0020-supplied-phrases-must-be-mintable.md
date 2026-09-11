@@ -5,6 +5,10 @@ Date: 2026-08-19 · Status: Superseded by [ADR-0032](0032-one-canonical-passphra
 This record rejected non-canonical supplied phrases during creation but accepted arbitrary phrases during
 opening. ADR-0032 replaces that asymmetry now that the product boundary is current official clients only.
 
+Implementation note (2026-09-11): the unused `term.SeedWords` retry implementation and its duplicate corpus
+test were removed before version one. ADR-0032's canonical grammar and differential tests now supply the live
+cross-entry validation contract; the original text below remains as historical rationale.
+
 ## Context
 
 Two parties who already share a passphrase want to use it: the sender mints under it, the recipient

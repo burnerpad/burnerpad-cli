@@ -5,6 +5,10 @@ Date: 2026-08-18 · Status: Superseded by [ADR-0027](0027-explicit-claimed-blob-
 This record automatically exposed ciphertext through stderr and JSON after a failed reveal. Recovery remains
 available under the current design, but only through a destination explicitly selected before the claim.
 
+Implementation note (2026-09-11): current local retry still preserves the held ciphertext and never repeats
+the claim, but each attempt enters the complete phrase again. The unused committed-word retention machinery
+described in the historical decision below was removed before version one.
+
 
 ## Context
 

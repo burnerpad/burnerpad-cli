@@ -14,14 +14,8 @@ import (
 // (phrase, transcript, err).
 func runPlain(t *testing.T, input string, min int) (string, string, error) {
 	t.Helper()
-	return runPlainSeeded(t, input, min, nil)
-}
-
-// runPlainSeeded is runPlain with a §7.3 retry seed.
-func runPlainSeeded(t *testing.T, input string, min int, seed []string) (string, string, error) {
-	t.Helper()
 	var out bytes.Buffer
-	buf, err := readPhrasePlain(strings.NewReader(input), &out, min, seed)
+	buf, err := readPhrasePlain(strings.NewReader(input), &out, min)
 	if err != nil {
 		return "", out.String(), err
 	}
@@ -121,67 +115,6 @@ func TestPlainEarlySubmitGate(t *testing.T) {
 	}
 	if phrase != "acrobat cufflink dresser osmosis riverboat tulip wolverine" {
 		t.Fatalf("phrase = %q", phrase)
-	}
-}
-
-// §7.3 in plain mode: the kept words are re-echoed with their count — a
-// screen-reader user must hear the state — and an empty line resubmits them.
-func TestPlainSeededEchoAndResubmit(t *testing.T) {
-	seed := strings.Fields("acrobat cufflink dresser osmosis riverboat tulip wolverine")
-	phrase, transcript, err := runPlainSeeded(t, "\n", 7, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := plainIntro +
-		"7 words kept: acrobat cufflink dresser osmosis riverboat tulip wolverine\n" +
-		"7 words — an empty line submits; keep typing if the phrase was longer\n" +
-		"7 words: "
-	if transcript != want {
-		t.Fatalf("transcript:\n%q\nwant:\n%q", transcript, want)
-	}
-	if phrase != "acrobat cufflink dresser osmosis riverboat tulip wolverine" {
-		t.Fatalf("phrase = %q", phrase)
-	}
-}
-
-// A seeded plain prompt resumes the ordinary loop: appended words commit
-// behind the kept ones, and the kept words count for duplicate rejection.
-func TestPlainSeededKeepsAccumulating(t *testing.T) {
-	seed := strings.Fields("acrobat cufflink dresser osmosis riverboat tulip wolverine")
-	phrase, transcript, err := runPlainSeeded(t, "acrobat\nzebra\n\n", 7, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(transcript, "a word is repeated\n") {
-		t.Fatalf("kept word not counted for duplicates: %q", transcript)
-	}
-	if !strings.Contains(transcript, "word 8 accepted: zebra\n") {
-		t.Fatalf("appended word not committed behind the seed: %q", transcript)
-	}
-	if phrase != "acrobat cufflink dresser osmosis riverboat tulip wolverine zebra" {
-		t.Fatalf("phrase = %q", phrase)
-	}
-}
-
-// A seed that min-gated list entry could not have produced is ignored: the
-// prompt starts fresh with no kept-words line.
-func TestPlainSeedInvalidIgnored(t *testing.T) {
-	full := "acrobat cufflink dresser osmosis riverboat tulip wolverine"
-	for name, seed := range map[string][]string{
-		"non-list word":  {"acrobat", "cufflink", "dresser", "osmosis", "riverboat", "tulip", "zzznotaword"},
-		"below the gate": {"cup", "elk"},
-		"duplicate":      {"acrobat", "acrobat", "dresser", "osmosis", "riverboat", "tulip", "wolverine"},
-	} {
-		phrase, transcript, err := runPlainSeeded(t, full+"\n\n", 7, seed)
-		if err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if strings.Contains(transcript, "kept") {
-			t.Errorf("%s: invalid seed still echoed as kept: %q", name, transcript)
-		}
-		if phrase != full {
-			t.Errorf("%s: phrase = %q", name, phrase)
-		}
 	}
 }
 
