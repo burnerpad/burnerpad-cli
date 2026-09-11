@@ -323,7 +323,7 @@ Finding 11 task ledger:
 - [x] 11.3 Add a complete process-level secret-redaction matrix across every diagnostic code and sensitive-value class.
 - [x] 11.4 Prove the `I`, `L`, and `O` identifier aliases end to end against the real pinned Lite server.
 - [x] 11.5 Prove real Lite expiry end to end through the CLI.
-- [ ] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
+- [x] 11.6 Enforce process-level egress observation in pinned, scheduled-main, and release interoperability.
 - [ ] 11.7 Observe a successful scheduled Lite-main run after the workflow reaches `main` (GitHub-only).
 - [ ] 11.8 Verify every required check on the release commit and dispatch `v1.0.0` only after all prior gates pass (GitHub-only).
 
@@ -383,6 +383,24 @@ Chromium suite passes against pinned Lite revision
 passes in Chromium, Firefox, WebKit, and mobile WebKit. Full Go test, vet, race,
 Staticcheck, dependency/import/decode, workflow-lint, JavaScript syntax, and
 Elixir formatting gates pass, and two independent reviews found no defect.
+
+11.6 completed 2026-09-11: pinned CI, scheduled Lite-main compatibility, and
+the release gate now call one Linux-only real-client harness. Its fixed,
+collision-checked unprivileged UID is intercepted by first-position IPv4 and
+IPv6 owner rules; numeric loopback canaries prove both reject paths, and the
+normal and expiry cases run in separate phases that return only their selected
+TCP origin to the runner's existing policy. Every phase requires positive
+selected-port traffic and zero rejected packets. The complete seven-case
+Chromium matrix passed from a fresh checkout of pinned Lite revision
+`01d9a3ffa29d8fdc4e62ed28e43239c3b3c04d54`, recording `195/0/0` packets for
+the normal phase and `25/0/0` for expiry (selected / rejected IPv4 / rejected
+IPv6). A forced Docker-removal failure also proved exit failure while both
+owner jumps and deny chains remained installed; exact test resources were then
+removed. Structural tests pin the three callers, immutable
+image, read-only mounts, per-origin rules, counter/status ordering, restricted
+container posture, and fail-closed cleanup. Full Go test, vet, race,
+Staticcheck, ShellCheck, actionlint, syntax, dependency/import/decode, and
+whitespace gates pass, and two independent final reviews found no defect.
 
 ## What is strong
 

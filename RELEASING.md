@@ -113,9 +113,10 @@ still prevents reuse of its tag name.
    upstream (`.github/workflows/spec-drift.yml`).
 3. ⚙ Pinned real-Lite interoperability green in all three official-client directions, all three Crockford
    aliases, and the real Store expiry path.
-4. **Manual—required before release:** demonstrate the **no-phone-home invariant**—zero application egress
-   to any host other than the selected API host across the matrix—and record the evidence. The repository
-   does not yet enforce this gate in CI.
+4. ⚙ The Linux real-client process tree has zero IP egress outside each phase's selected API origin
+   (`scripts/run-lite-interop.sh`). Pinned CI, scheduled Lite-main compatibility, and the release gate use the
+   same deny-by-default harness; its IPv4/IPv6 canaries, positive selected-port counters, and zero reject
+   counters must all pass.
 5. ⚙ Size gate ≤ 9 MiB × 6 targets; import allowlist green
    (`scripts/check-size.sh`, `scripts/check-deps.sh`).
 6. ⚙ `govulncheck` clean; toolchain at the latest patch of its minor.

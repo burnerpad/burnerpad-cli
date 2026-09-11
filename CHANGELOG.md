@@ -62,6 +62,8 @@ derived from the immutable release tag and never hardcoded in source.
 - Every network operation identifies its server before sending and machine responses record that origin.
 - Errors exclude links, IDs, phrases, management tokens, ciphertext, plaintext, raw responses, and paths.
 - The server API client performs no retry, telemetry, update check, or compatibility probe.
+- Enforce per-origin IPv4/IPv6 egress observation around the unprivileged Linux real-client process tree in
+  pinned CI, scheduled Lite-main compatibility, and the release gate.
 - GitHub Actions and release-runner container images are pinned by immutable digest; unverified package
   channels are excluded from the first release rather than failing or publishing through an unowned
   destination.

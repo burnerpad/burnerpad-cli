@@ -1,6 +1,6 @@
 # ADR-0040: Keep the egress requirement distinct from its executable proof
 
-Date: 2026-09-11 · Status: Accepted · Amends: [ADR-0008](0008-no-config-no-state-no-telemetry.md) (verification evidence) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md#http-contract), [RELEASING.md](../../RELEASING.md#release-qa-checklist)
+Date: 2026-09-11 · Status: Accepted · Amends: [ADR-0008](0008-no-config-no-state-no-telemetry.md) (verification requirement) · Amended by: [ADR-0042](0042-enforce-process-egress-observation.md) (executable evidence) · Source: [ARCHITECTURE.md](../ARCHITECTURE.md#http-contract), [RELEASING.md](../../RELEASING.md#release-qa-checklist)
 
 ## Context
 

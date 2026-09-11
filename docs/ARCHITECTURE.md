@@ -215,7 +215,17 @@ wordlist. They also run real Chromium interoperability in all three directions: 
 and CLI→CLI, including bare-ID `I`/`L`/`O` aliases. A second exact-source Lite process uses a guarded,
 test-VM-local five-second lifetime override after normal validated boot; the CLI gate proves pre-expiry
 liveness, post-expiry unavailability, and exact Store counter changes without patching upstream source. The
-`lite-main-interop` workflow runs the same tests against Lite `main` on a schedule as an early drift warning.
+shared `scripts/run-lite-interop.sh` harness runs those tests as a fixed unprivileged UID behind first-position
+IPv4 and IPv6 owner rules. Numeric loopback canaries prove both reject paths before counters are zeroed. The
+six normal tests can reach only TCP `127.0.0.1:4014`; the isolated expiry test can reach only TCP
+`127.0.0.1:4015`. Each phase must exercise its selected rule and leave both reject counters at zero. This
+observes the complete Linux Playwright process tree—Node, Chromium, request fixtures, and CLI children—while
+functional assertions identify the CLI operations; it does not pretend to attribute individual packets or
+cover setup, host Lite processes, dormant paths, non-IP IPC, or other operating-system binaries. Pinned CI,
+the release gate, and the scheduled `lite-main-interop` workflow all call the same harness; the scheduled run
+uses Lite `main` as an early drift warning. Cleanup removes the owner rules only after positively confirming
+that its client containers have stopped; if Docker cannot establish that postcondition, the rules remain in
+place and the disposable runner fails closed.
 
 GitHub Releases is the only official version-one binary source. A published version-one release will contain
 the platform archives, native package files, archive SBOMs, checksum manifest, keyless Cosign checksum bundle,
